@@ -24,7 +24,7 @@ import sys
 import getopt
 import logging
 from shadowsocks.common import to_bytes, to_str, IPNetwork, PortRange
-from shadowsocks import encrypt
+from shadowsocks import encrypt, ssrlink
 
 VERBOSE_LEVEL = 5
 
@@ -136,10 +136,11 @@ def get_config(is_local):
     global verbose
     config = {}
     config_path = None
+    config_ssrlink = None
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)-s: %(message)s')
     if is_local:
-        shortopts = 'hd:s:b:p:k:l:m:O:o:G:g:c:t:vq'
+        shortopts = 'hd:s:b:p:k:l:L:m:O:o:G:g:c:t:vq'
         longopts = ['help', 'fast-open', 'pid-file=', 'log-file=', 'user=',
                     'version']
     else:
@@ -151,6 +152,8 @@ def get_config(is_local):
         for key, value in optlist:
             if key == '-c':
                 config_path = value
+            elif key == '-L':
+                config_ssrlink = value
             elif key in ('-h', '--help'):
                 print_help(is_local)
                 sys.exit(0)
@@ -171,6 +174,14 @@ def get_config(is_local):
                 except ValueError as e:
                     logging.error('found an error in config.json: %s', str(e))
                     sys.exit(1)
+         # TODO: Save ssrlink to file
+         # TODO: Support ssrlink save in file                    
+        if config_ssrlink:
+            try:
+                config = ssrlink.parseSSR(config_ssrlink)
+            except:
+                logging.error(sys.exc_info())
+                sys.exit(1)
 
         v_count = 0
         for key, value in optlist:
