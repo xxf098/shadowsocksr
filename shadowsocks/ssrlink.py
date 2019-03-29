@@ -23,42 +23,70 @@ def decodeToStr(encodeData, exitOnError=False):
         pass
     return result
 
-def parseKeyVal(keyVal):
-    key = keyVal[0]
-    val = keyVal[1]
-    if len(keyVal[1]) < 1:
-        return ""
-    if key == 'remarks' or key == 'group':
-        return decodeToStr(addPadding(val))
-    return val
+def DecodeUrlSafeBase64(val, exitOnError=True):
+    val = val.replace('-', '+').replace('_', '/')
+    return decodeToStr(addPadding(val), exitOnError)
 
+def ParseParam(param_str):
+    params_dict = {}
+    obfs_params = param_str.split('&')
+    for p in obfs_params:
+        if p.find('=') > 0:
+            keyVal = p.split('=')
+            key = keyVal[0]
+            val = keyVal[1]
+            params_dict[key] = val
+    return params_dict
+
+# ssr://host:port:protocol:method:obfs:base64pass/?obfsparam=base64&remarks=base64&group=base64&udpport=0&uot=1
 def parseSSR(link):
-    isSSRLink = re.match(r'^ssr?://', link, re.I)
-    if not isSSRLink:
+    ssrMatch = re.match(r'^ssr?://([A-Za-z0-9_-]+)', link, re.I)
+    if not ssrMatch:
         exit(1)
-    encodeData = re.sub(r'^ssr?://', '', link, re.I)
-    decodeData = decodeToStr(addPadding(encodeData), exitOnError=True)
-    splits = decodeData.split('/?')
-    baseInfo = splits[0]
-    extraInfo = splits[1] if len(splits) > 1 else ""
-    values = baseInfo.split(':')
+    data = DecodeUrlSafeBase64(ssrMatch.group(1))
+    params_dict = {}
+    param_start_pos = data.index('?')
+    if param_start_pos > 0:
+        params_dict = ParseParam(data[param_start_pos+1:])
+        data = data[0:param_start_pos]
+    if data.index('/'):
+        data = data[0:data.rindex('/')]
+    
+    match = re.match(r'^(.+):([^:]+):([^:]*):([^:]+):([^:]*):([^:]+)', data)
+    if not match:
+        # TODO: throw error
+        exit(1)
+    server = match.group(1)
+    server_port = int(match.group(2))
+    protocol = 'origin' if len(match.group(3)) == 0 else match.group(3)
+    protocol = protocol.replace('_compatible', '')
+    method = match.group(4)
+    obfs = 'plain' if len(match.group(5)) == 0 else match.group(5)
+    obfs.replace("_compatible", "")
+    password = DecodeUrlSafeBase64(match.group(6))
     config = {
-        'server': values[0],
-        'server_port': values[1],
+        'server': server,
+        'server_port': server_port,
         'local_address': '127.0.0.1',
         'local_port': 8088,
-        'timeout': 300,
-        'workers': 1,
-        'protocol': values[2],
-        'method': values[3],
-        'obfs': values[4],
-        'password': decodeToStr(addPadding(values[5]))
+        'protocol': protocol,
+        'method': method,
+        'obfs': obfs,
+        'password': password
     }
-    entries = extraInfo.split('&')
-    for entry in entries:
-        keyVal = entry.split('=')
-        if len(keyVal[1]) > 0:
-            config[keyVal[0]] = keyVal[1]
+    if 'protoparam' in params_dict:
+        protocolparam = DecodeUrlSafeBase64(params_dict['protoparam'])
+        config['protocol_param'] = protocolparam
+    if 'obfsparam' in params_dict:
+        obfsparam = DecodeUrlSafeBase64(params_dict['obfsparam'])
+        config['obfs_param'] = obfsparam
+    if 'remarks' in params_dict:
+        remarks = DecodeUrlSafeBase64(params_dict['remarks'])
+        config['remarks'] = remarks
+    if 'group' in params_dict:
+        group = DecodeUrlSafeBase64(params_dict['group'])
+        config['group'] = group
+    # 'uot', 'udpport'         
     return config
 
 if __name__ == '__main__':
