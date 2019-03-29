@@ -64,6 +64,16 @@ Client
 Use GUI clients on your local PC/phones. Check the README of your client
 for more information.
 
+Example
+------
+To run from a SSR link:
+
+    python3 ./shadowsocks/local.py -L ssr://ABCDEFGHIJKLMNOPQRSTUVWXYZ
+
+To run from a config file:
+
+    python3 ./shadowsocks/local.py -L /path/to/config.json
+
 Documentation
 -------------
 
