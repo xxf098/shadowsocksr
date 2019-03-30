@@ -5,6 +5,11 @@ ShadowsocksR
 
 A fast tunnel proxy that helps you bypass firewalls.
 
+Feature
+------
+* Load from a .ssr file with ssr://  link
+* Run from a ssr:// link
+
 Server
 ------
 
