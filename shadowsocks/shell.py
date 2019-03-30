@@ -23,6 +23,7 @@ import json
 import sys
 import getopt
 import logging
+import re
 from shadowsocks.common import to_bytes, to_str, IPNetwork, PortRange
 from shadowsocks import encrypt, ssrlink
 
@@ -171,12 +172,15 @@ def get_config(is_local):
             # .ssr load ssr link directly
             with open(config_path, 'rb') as f:
                 try:
-                    config = parse_json_in_str(remove_comment(f.read().decode('utf8')))
+                    if re.match(r'.*\.ssr$', config_path, re.I):
+                        config = parse_ssrlink_in_str(f.read().decode('utf8'))
+                    else:
+                        config = parse_json_in_str(remove_comment(f.read().decode('utf8')))
                 except ValueError as e:
                     logging.error('found an error in config.json: %s', str(e))
                     sys.exit(1)
          # TODO: Save ssrlink to file
-         # TODO: Support ssrlink save in file                    
+         # TODO: Support ssrlink save in file
         if config_ssrlink:
             try:
                 config = ssrlink.parseLink(config_ssrlink)
@@ -461,3 +465,6 @@ def remove_comment(json):
 def parse_json_in_str(data):
     # parse json and convert everything from unicode to str
     return json.loads(data, object_hook=_decode_dict)
+
+def parse_ssrlink_in_str(data):
+    return ssrlink.parseLink(data)
