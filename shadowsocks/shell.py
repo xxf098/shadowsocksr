@@ -168,6 +168,7 @@ def get_config(is_local):
 
         if config_path:
             logging.debug('loading config from %s' % config_path)
+            # .ssr load ssr link directly
             with open(config_path, 'rb') as f:
                 try:
                     config = parse_json_in_str(remove_comment(f.read().decode('utf8')))
@@ -178,7 +179,7 @@ def get_config(is_local):
          # TODO: Support ssrlink save in file                    
         if config_ssrlink:
             try:
-                config = ssrlink.parseSSR(config_ssrlink)
+                config = ssrlink.parseLink(config_ssrlink)
             except:
                 logging.error(sys.exc_info())
                 sys.exit(1)

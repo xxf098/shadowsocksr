@@ -89,10 +89,47 @@ def parseSSR(link):
     # 'uot', 'udpport'         
     return config
 
+def parseSS(ssURL):
+    UrlFinder = re.compile(r'^(?i)ss://([A-Za-z0-9+-/=_@:]+)(#(.+))?', re.I)
+    DetailsParser = re.compile(r'^((?P<method>.+):(?P<password>.*)@(?P<hostname>.+?):(?P<port>\\d+?))$', re.I)
+    match = UrlFinder.match(ssURL)
+    if not match:
+        raise Exception('FormatException ss')
+    base64 = match.group(1)
+    match = DetailsParser.match(base64)
+    if not match:
+        raise Exception('Not Supported Link')
+    protocol = 'origin'
+    method = match.group('method')
+    password = match.group('password')
+    server = match.group('hostname')
+    server_port = match.group('port')
+    group = ""
+    config = {
+            'protocol': protocol,
+            'method': method,
+            'password': password,
+            'server': server,
+            'server_port': server_port,
+            'group': group
+            }
+    return config
+
+def parseLink(link):
+    if re.match(r'^ss://', link, re.I):
+        return parseSS(link)
+    if re.match(r'^ssr://', link, re.I):
+        return parseSSR(link)
+    raise Exception('Not Supported Link')
+
 if __name__ == '__main__':
     # print("Hello World")
     if len(sys.argv) != 2:
         exit()
     ssrLink = sys.argv[1]
-    config = parseSSR(ssrLink)
+    config = {}
+    if re.match(r'^ss://', re.I):
+        config = parseSS(ssrLink)
+    if re.match(r'^ssr://', re.I):
+        config = parseSSR(ssrLink)
     print(json.dumps(config, indent=4))
