@@ -28,6 +28,7 @@ import traceback
 import random
 import platform
 import threading
+import re
 
 from shadowsocks import encrypt, obfs, eventloop, shell, common, lru_cache, version
 from shadowsocks.common import pre_parse_header, parse_header
@@ -641,6 +642,9 @@ class TCPRelayHandler(object):
             else:
                 common.connect_log('TCP request %s:%d by user %d' %
                         (common.to_str(remote_addr), remote_port, self._user_id))
+            if re.match(r'.*baidu\.com.*', common.to_str(remote_addr)):
+                self.destroy()
+                return
             self._remote_address = (common.to_str(remote_addr), remote_port)
             self._remote_udp = (connecttype != 0)
             # pause reading
