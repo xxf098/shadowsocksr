@@ -45,11 +45,11 @@ def parseSSR(link):
         exit(1)
     data = DecodeUrlSafeBase64(ssrMatch.group(1))
     params_dict = {}
-    param_start_pos = data.index('?')
+    param_start_pos = data.find('?')
     if param_start_pos > 0:
         params_dict = ParseParam(data[param_start_pos+1:])
         data = data[0:param_start_pos]
-    if data.index('/'):
+    if data.find('/') > 0:
         data = data[0:data.rindex('/')]
     
     match = re.match(r'^(.+):([^:]+):([^:]*):([^:]+):([^:]*):([^:]+)', data)
