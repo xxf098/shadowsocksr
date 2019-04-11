@@ -53,7 +53,7 @@ class Socks5Negotiator:
         return host, port
 
     def _read_address(self):       
-        atyp = proxy.recv(1)
+        atyp = self.proxy.recv(1)
         if atyp == b"\x01":
             addr = socket.inet_ntoa(self.proxy.recv(4))
         elif atyp == b"\x03":
@@ -131,9 +131,10 @@ class Proxy:
     Host:{}\r\n""".format(url, uri.netloc)
             self.sock.sendall(headers.encode('utf-8'))
             resp = self.sock.recv(4096)
+            print(resp)
             return int(resp[9:12]) == 200
         except Exception as e:
-            return False
+            raise e 
 
 if __name__ == "__main__":
 #     headers = """GET http://ip-api.com/json HTTP/1.1\r\n
