@@ -290,26 +290,22 @@ class EventLoop(object):
     def run(self):
         events = []
         while not self._stopping:
-            asap = False
-            try:
-                events = self.poll(TIMEOUT_PRECISION)
-            except (OSError, IOError) as e:
-                if errno_from_exception(e) in (errno.EPIPE, errno.EINTR):
-                    # EPIPE: Happens when the client closes the connection
-                    # EINTR: Happens when received a signal
-                    # handles them as soon as possible
-                    asap = True
-                    logging.debug('poll:%s', e)
-                else:
-                    logging.error('poll:%s', e)
-                    import traceback
-                    traceback.print_exc()
-                    continue
-
-            self.loop.run_until_complete(self._handle_events(events, asap))
+            self.loop.run_until_complete(self._handle_poll_events())
 
     
-    async def _handle_events (self, events, asap):
+    async def _handle_poll_events (self):
+        asap = False
+        try:
+            events = self.poll(TIMEOUT_PRECISION)
+        except (OSError, IOError) as e:
+            if errno_from_exception(e) in (errno.EPIPE, errno.EINTR):
+                asap = True
+                logging.debug('poll:%s', e)
+            else:
+                logging.error('poll:%s', e)
+                import traceback
+                traceback.print_exc()
+                return
         tasks = [asyncio.coroutine(self._fdmap.get(fd)[1].handle_event)(sock, fd, event) for sock, fd, event in events if self._fdmap.get(fd, None) is not None ]
         try:
             results = await asyncio.gather(*tasks)
