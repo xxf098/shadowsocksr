@@ -31,6 +31,7 @@ from collections import defaultdict
 
 from shadowsocks import shell
 import asyncio
+import functools
 
 __all__ = ['EventLoop', 'POLL_NULL', 'POLL_IN', 'POLL_OUT', 'POLL_ERR',
            'POLL_HUP', 'POLL_NVAL', 'EVENT_NAMES']
@@ -305,21 +306,16 @@ class EventLoop(object):
                     traceback.print_exc()
                     continue
 
-            handle = False
             self.loop.run_until_complete(self._handle_events(events, asap))
 
     
     async def _handle_events (self, events, asap):
-        handle = False
-        for sock, fd, event in events:
-            handler = self._fdmap.get(fd, None)
-            if handler is not None:
-                handler = handler[1]
-                try:
-                    # print(f"id:{id(handler)}, class:{handler.__class__.__name__}, fd:{fd}, event:{event}")
-                    handle = handler.handle_event(sock, fd, event) or handle
-                except (OSError, IOError) as e:
-                    shell.print_exception(e)
+        tasks = [asyncio.coroutine(self._fdmap.get(event[1])[1].handle_event)(*event) for event in events if self._fdmap.get(event[1], None) is not None ]
+        try:
+            results = await asyncio.gather(*tasks)
+        except (OSError, IOError) as e:
+            shell.print_exception(e)
+        handle = functools.reduce(lambda x, y: x or y, results, False)
         now = time.time()
         if asap or now - self._last_time >= TIMEOUT_PRECISION:
             await asyncio.gather(*[asyncio.coroutine(callback)() for callback in self._periodic_callbacks])
