@@ -313,11 +313,14 @@ class EventLoop(object):
             shell.print_exception(e)
         handle = functools.reduce(lambda x, y: x or y, results, False)
         now = time.time()
+        tasks = []
         if asap or now - self._last_time >= TIMEOUT_PRECISION:
-            await asyncio.gather(*[asyncio.coroutine(callback)() for callback in self._periodic_callbacks])
-            self._last_time = now
+            tasks = [asyncio.coroutine(callback)() for callback in self._periodic_callbacks]
         if events and not handle:
-            await asyncio.sleep(0.001)
+            tasks.append(asyncio.sleep(0.001))
+        await asyncio.gather(*tasks)
+        self._last_time = now
+        
 
     def __del__(self):
         self._impl.close()
