@@ -30,7 +30,7 @@ import logging
 from collections import defaultdict
 
 from shadowsocks import shell
-
+import asyncio
 
 __all__ = ['EventLoop', 'POLL_NULL', 'POLL_IN', 'POLL_OUT', 'POLL_ERR',
            'POLL_HUP', 'POLL_NVAL', 'EVENT_NAMES']
@@ -142,7 +142,7 @@ class SelectLoop(object):
         pass
 
 
-class EventLoop(object):
+class EventLoop1(object):
     def __init__(self):
         if hasattr(select, 'epoll'):
             self._impl = select.epoll()
@@ -165,9 +165,13 @@ class EventLoop(object):
     def poll(self, timeout=None):
         events = self._impl.poll(timeout)
         return [(self._fdmap[fd][0], fd, event) for fd, event in events]
-
+    
+    # f is scok
+    # handler is tcpreplay
+    # handler is DNSResolver
     def add(self, f, mode, handler):
         fd = f.fileno()
+        # print(f"Add: id:{id(handler)}, class:{handler.__class__.__name__},sock:{f}, fd:{fd}, mode:{mode}")
         self._fdmap[fd] = (f, handler)
         self._impl.register(fd, mode)
 
@@ -218,6 +222,7 @@ class EventLoop(object):
                 if handler is not None:
                     handler = handler[1]
                     try:
+                        # print(f"id:{id(handler)}, class:{handler.__class__.__name__}, fd:{fd}, event:{event}")
                         handle = handler.handle_event(sock, fd, event) or handle
                     except (OSError, IOError) as e:
                         shell.print_exception(e)
@@ -232,6 +237,99 @@ class EventLoop(object):
     def __del__(self):
         self._impl.close()
 
+class EventLoop(object):
+    def __init__(self):
+      
+        self._impl = select.epoll()
+        model = 'epoll'
+        self._fdmap = {}  # (f, handler)
+        self._last_time = time.time()
+        self._periodic_callbacks = []
+        self._stopping = False
+        logging.debug('using event model: %s', model)
+
+    def poll(self, timeout=None):
+        events = self._impl.poll(timeout)
+        return [(self._fdmap[fd][0], fd, event) for fd, event in events]
+    
+    # f is scok
+    # handler is tcpreplay
+    # handler is DNSResolver
+    # pullout send
+    # pullin  recv
+    def add(self, f, mode, handler):
+        fd = f.fileno()
+        # print(f"Add: id:{id(handler)}, class:{handler.__class__.__name__},sock:{f}, fd:{fd}, mode:{mode}")
+        self._fdmap[fd] = (f, handler)
+        self._impl.register(fd, mode)
+
+    def remove(self, f):
+        fd = f.fileno()
+        del self._fdmap[fd]
+        self._impl.unregister(fd)
+
+    def removefd(self, fd):
+        del self._fdmap[fd]
+        self._impl.unregister(fd)
+
+    def add_periodic(self, callback):
+        self._periodic_callbacks.append(callback)
+
+    def remove_periodic(self, callback):
+        self._periodic_callbacks.remove(callback)
+
+    def modify(self, f, mode):
+        fd = f.fileno()
+        self._impl.modify(fd, mode)
+
+    def stop(self):
+        self._stopping = True
+
+    def run(self):
+        events = []
+        while not self._stopping:
+            asap = False
+            try:
+                events = self.poll(TIMEOUT_PRECISION)
+            except (OSError, IOError) as e:
+                if errno_from_exception(e) in (errno.EPIPE, errno.EINTR):
+                    # EPIPE: Happens when the client closes the connection
+                    # EINTR: Happens when received a signal
+                    # handles them as soon as possible
+                    asap = True
+                    logging.debug('poll:%s', e)
+                else:
+                    logging.error('poll:%s', e)
+                    import traceback
+                    traceback.print_exc()
+                    continue
+
+            handle = False
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(self._handle_events(events, asap))
+
+    
+    async def _handle_events (self, events, asap):
+        handle = False
+        for sock, fd, event in events:
+            handler = self._fdmap.get(fd, None)
+            if handler is not None:
+                handler = handler[1]
+                try:
+                    # print(f"id:{id(handler)}, class:{handler.__class__.__name__}, fd:{fd}, event:{event}")
+                    handle = handler.handle_event(sock, fd, event) or handle
+                except (OSError, IOError) as e:
+                    shell.print_exception(e)
+        now = time.time()
+        if asap or now - self._last_time >= TIMEOUT_PRECISION:
+            for callback in self._periodic_callbacks:
+                callback()
+            self._last_time = now
+        if events and not handle:
+            await asyncio.sleep(0.001)
+
+    def __del__(self):
+        self._impl.close()
 
 # from tornado
 def errno_from_exception(e):
