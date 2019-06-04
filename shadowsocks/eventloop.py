@@ -310,7 +310,7 @@ class EventLoop(object):
 
     
     async def _handle_events (self, events, asap):
-        tasks = [asyncio.coroutine(self._fdmap.get(event[1])[1].handle_event)(*event) for event in events if self._fdmap.get(event[1], None) is not None ]
+        tasks = [asyncio.coroutine(self._fdmap.get(fd)[1].handle_event)(sock, fd, event) for sock, fd, event in events if self._fdmap.get(fd, None) is not None ]
         try:
             results = await asyncio.gather(*tasks)
         except (OSError, IOError) as e:
