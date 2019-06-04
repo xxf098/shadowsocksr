@@ -246,6 +246,7 @@ class EventLoop(object):
         self._last_time = time.time()
         self._periodic_callbacks = []
         self._stopping = False
+        self.loop = asyncio.get_event_loop()
         logging.debug('using event model: %s', model)
 
     def poll(self, timeout=None):
@@ -305,8 +306,7 @@ class EventLoop(object):
                     continue
 
             handle = False
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(self._handle_events(events, asap))
+            self.loop.run_until_complete(self._handle_events(events, asap))
 
     
     async def _handle_events (self, events, asap):
@@ -322,8 +322,7 @@ class EventLoop(object):
                     shell.print_exception(e)
         now = time.time()
         if asap or now - self._last_time >= TIMEOUT_PRECISION:
-            for callback in self._periodic_callbacks:
-                callback()
+            await asyncio.gather(*[asyncio.coroutine(callback)() for callback in self._periodic_callbacks])
             self._last_time = now
         if events and not handle:
             await asyncio.sleep(0.001)
