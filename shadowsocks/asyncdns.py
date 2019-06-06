@@ -205,7 +205,7 @@ def parse_header(data):
     return None
 
 
-def parse_response(data):
+def parse_response1(data):
     try:
         if len(data) >= 12:
             header = parse_header(data)
@@ -245,6 +245,26 @@ def parse_response(data):
         shell.print_exception(e)
         return None
 
+def parse_response(data):
+    start = 12
+    end = data.find(b'\x00', 12)
+    domain = b''
+    while start < end:
+        offset = data[start]
+        start = start + 1
+        domain = domain + data[start:start + offset] + b'.'
+        start = start + offset
+    response_code = data[end+2]
+    ip = None
+    if response_code == 1:
+        ip = data[-4:]
+        ip = [ str(x) for x in ip ]
+        ip = '.'.join(ip)
+    response = DNSResponse()
+    response.hostname = domain[0:-1]
+    response.questions.append((None, 1, 1))
+    response.answers.append((ip, 1, 1))
+    return response
 
 def is_valid_hostname(hostname):
     if len(hostname) > 255:
