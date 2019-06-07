@@ -289,13 +289,13 @@ STATUS_IPV6 = 1
 
 
 class DNSResolver(object):
-    def __init__(self, black_hostname_list=None):
+    def __init__(self, black_hostname_list=None, config=None):
         self._loop = None
         self._hosts = {}
         self._hostname_status = {}
         self._hostname_to_cb = {}
         self._cb_to_hostname = {}
-        self._cache = lru_cache.LRUCache(timeout=300)
+        self._cache = lru_cache.LRUCache(timeout=3600)
         # read black_hostname_list from config
         if type(black_hostname_list) != list:
             self._black_hostname_list = []
@@ -309,6 +309,8 @@ class DNSResolver(object):
         self._servers = None
         self._parse_resolv()
         self._parse_hosts()
+        if config is not None:
+            self._resolve_sync(config['server'].encode())
         # TODO monitor hosts change and reload hosts
         # TODO parse /etc/gai.conf and follow its rules
 
@@ -374,6 +376,23 @@ class DNSResolver(object):
                                     self._hosts[hostname] = ip
         except IOError:
             self._hosts['localhost'] = '127.0.0.1'
+
+    def _resolve_sync (self, hostname):
+        if self._sock is None:
+            self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM,
+                            socket.SOL_UDP)
+            self._sock.setblocking(True)
+        if IPV6_CONNECTION_SUPPORT:
+            self._hostname_status[hostname] = STATUS_IPV6
+            self._send_req(hostname, QTYPE_AAAA)
+        else:
+            self._hostname_status[hostname] = STATUS_IPV4
+            self._send_req(hostname, QTYPE_A)
+        data, addr = self._sock.recvfrom(1024)
+        if addr not in self._servers:
+            logging.warn('received a packet other than our dns')
+            return
+        self._handle_data(data)
 
     def add_to_loop(self, loop):
         if self._loop:
