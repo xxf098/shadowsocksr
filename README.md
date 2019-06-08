@@ -7,7 +7,7 @@ Feature
 * Run from a ssr:// link
 * Asyncio based eventloop
 * Query DNS on startup
-* Support test multiple ssr config
+* Support test multiple ssr configs
 
 Example
 ------
