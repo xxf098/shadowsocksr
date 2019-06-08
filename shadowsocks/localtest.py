@@ -5,13 +5,26 @@ import select
 import time
 import argparse
 from subprocess import Popen, PIPE
+from os import listdir,environ
+from sys import argv
+from os.path import isfile,join
+import re
+
+HEADER = '\033[95m'
+OKBLUE = '\033[94m'
+OKGREEN = '\033[92m'
+WARNING = '\033[93m'
+FAIL = '\033[91m'
+ENDC = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
 
 python = ['python3']
 
-def single_test (config, client_conf=None):
+def single_test (config, ssr=None):
     client_args = python + ['shadowsocks/local.py', '-v']
-    if client_conf:
-        client_args.extend(['-c', client_conf])
+    if ssr:
+        client_args.extend(['-c', ssr])
     p1 = Popen(client_args, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
     p3 = None
     p4 = None
@@ -23,7 +36,7 @@ def single_test (config, client_conf=None):
         while True:
             r, w, e = select.select(fdset, [], fdset)
             if e:
-                break
+                return False
 
             for fd in r:
                 line = fd.readline()
@@ -34,22 +47,24 @@ def single_test (config, client_conf=None):
                         stage = 5
                 if bytes != str:
                     line = str(line, 'utf8')
-                sys.stderr.write(line)
+                if line.find('DEBUG') < 0 and line.find('INFO') < 0:
+                    sys.stderr.write(line)
                 if line.find('starting local') >= 0:
                     local_ready = True
             
             if stage == 1 and local_ready:
                 time.sleep(1)
-                p3 = Popen(['curl', 'https://api.ipify.org?format=json',
+                p3 = Popen(['curl', 'http://ip-api.com/json',
                         '-x', 'socks5h://localhost:8088',
-                        '-m', '15', '--connect-timeout', '10'],
+                        '-m', '15', '--connect-timeout', '5', '-s'],
                         stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
                 if p3 is not None:
                     fdset.append(p3.stdout)
                     fdset.append(p3.stderr)
                     stage = 2
                 else:
-                    sys.exit(1)      
+                    # sys.exit(1) 
+                    return False     
 
             if stage == 3 and p3 is not None:
                 fdset.remove(p3.stdout)
@@ -60,29 +75,37 @@ def single_test (config, client_conf=None):
                         sys.exit(1)
                 else:
                     if r != 0:
-                        sys.exit(1)
-                p4 = Popen(['curl', 'http://ip-api.com/json',
-                            '-x', 'socks5h://localhost:8088',
-                            '-m', '15', '--connect-timeout', '10'],
-                        stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
+                        # sys.exit(1)
+                        return False
+                # p4 = Popen(['curl', 'http://ip-api.com/json',
+                #             '-x', 'socks5h://localhost:8088',
+                #             '-m', '15', '--connect-timeout', '5', '-s'],
+                #         stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
+                return True
                 if p4 is not None:
                     fdset.append(p4.stdout)
                     fdset.append(p4.stderr)
                     stage = 4
                 else:
-                    sys.exit(1)  
+                    # sys.exit(1)  
+                    return False
 
             if stage == 5:
                 r = p4.wait()
                 if config.should_fail:
                     if r == 0:
-                        sys.exit(1)
+                        # sys.exit(1)
+                        return False
                     print('test passed (expecting failure)')
                 else:
                     if r != 0:
-                        sys.exit(1)
-                    print('test passed')
+                        # sys.exit(1)
+                        return False
+                    # print('test passed')
+                    return True
                 break
+    except:
+        return False
     finally:
         for p in [p1]:
             try:
@@ -97,7 +120,14 @@ def main():
     parser.add_argument('--should-fail', action='store_true', default=None)
     parser.add_argument('--tcp-only', action='store_true', default=None)
     config = parser.parse_args()
-    single_test(config, config.client_conf)
+    ssrs = [f"./json/{f}" for f in listdir('./json') if isfile(join('./json', f)) and re.match('(.*\.ssr$)|(.*\.json$)', f) ]
+    # ps -aux | grep shadowsocks/local.py | grep -v grep | awk '{print $2}'
+    for ssr in ssrs:
+        test_result = single_test(config, ssr)
+        if test_result:
+            print(f"{OKGREEN}{ssr}:{test_result}{ENDC}")
+        else:
+            print(f"{FAIL}{ssr}:{test_result}{ENDC}")
 
 if __name__ == '__main__':
     main()
