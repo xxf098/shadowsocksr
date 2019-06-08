@@ -4,6 +4,7 @@ import signal
 import select
 import time
 import argparse
+import subprocess
 from subprocess import Popen, PIPE
 from os import listdir,environ
 from sys import argv
@@ -114,20 +115,29 @@ def single_test (config, ssr=None):
             except OSError:
                 pass
 
+def kill_old_process():
+    output = subprocess.check_output("ps -aux | grep shadowsocks/local.py | grep -v grep | awk '{print $2}'", shell=True)
+    pid = output.decode().rstrip()
+    if re.match('\d+', pid):
+        try:
+            os.kill(int(pid), signal.SIGINT)
+            os.waitpid(int(pid), 0)
+        except OSError:
+            pass
+
 def main():
+    kill_old_process()
     parser = argparse.ArgumentParser(description='test local')
     parser.add_argument('-c', '--client-conf', type=str, default=None)
     parser.add_argument('--should-fail', action='store_true', default=None)
     parser.add_argument('--tcp-only', action='store_true', default=None)
     config = parser.parse_args()
     ssrs = [f"./json/{f}" for f in listdir('./json') if isfile(join('./json', f)) and re.match('(.*\.ssr$)|(.*\.json$)', f) ]
-    # ps -aux | grep shadowsocks/local.py | grep -v grep | awk '{print $2}'
+    # process pool
     for ssr in ssrs:
         test_result = single_test(config, ssr)
-        if test_result:
-            print(f"{OKGREEN}{ssr}:{test_result}{ENDC}")
-        else:
-            print(f"{FAIL}{ssr}:{test_result}{ENDC}")
+        print(f"{OKGREEN if test_result else FAIL}{ssr}:{test_result}{ENDC}")
+
 
 if __name__ == '__main__':
     main()
