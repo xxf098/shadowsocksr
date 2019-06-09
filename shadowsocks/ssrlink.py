@@ -39,7 +39,7 @@ def ParseParam(param_str):
     return params_dict
 
 # ssr://host:port:protocol:method:obfs:base64pass/?obfsparam=base64&remarks=base64&group=base64&udpport=0&uot=1
-def parseSSR(link):
+def parseSSR(link, local_port=None):
     ssrMatch = re.match(r'^ssr?://([A-Za-z0-9_-]+)', link, re.I)
     if not ssrMatch:
         exit(1)
@@ -68,7 +68,7 @@ def parseSSR(link):
         'server': server,
         'server_port': server_port,
         'local_address': '127.0.0.1',
-        'local_port': 8088,
+        'local_port': local_port if local_port is not None else 8088,
         'protocol': protocol,
         'method': method,
         'obfs': obfs,
@@ -115,11 +115,11 @@ def parseSS(ssURL):
             }
     return config
 
-def parseLink(link):
+def parseLink(link, local_port=None):
     if re.match(r'^ss://', link, re.I):
         return parseSS(link)
     if re.match(r'^ssr://', link, re.I):
-        return parseSSR(link)
+        return parseSSR(link, local_port)
     raise Exception('Not Supported Link')
 
 if __name__ == '__main__':
