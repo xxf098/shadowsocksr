@@ -10,6 +10,7 @@ from os import listdir,environ
 from sys import argv
 from os.path import isfile,join
 import re
+import random
 
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
@@ -21,11 +22,14 @@ BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 
 python = ['python3']
+local_port = 8089
 
 def single_test (config, ssr=None):
     client_args = python + ['shadowsocks/local.py', '-v']
     if ssr:
         client_args.extend(['-c', ssr])
+        local_port = random.randint(8089,9000)
+        client_args.extend(['-l', str(local_port)])
     p1 = Popen(client_args, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
     p3 = None
     p4 = None
@@ -48,15 +52,15 @@ def single_test (config, ssr=None):
                         stage = 5
                 if bytes != str:
                     line = str(line, 'utf8')
-                if line.find('DEBUG') < 0 and line.find('INFO') < 0:
-                    sys.stderr.write(line)
+                # if line.find('DEBUG') < 0 and line.find('INFO') < 0:
+                sys.stderr.write(line)
                 if line.find('starting local') >= 0:
                     local_ready = True
             
             if stage == 1 and local_ready:
                 time.sleep(1)
                 p3 = Popen(['curl', 'http://ip-api.com/json',
-                        '-x', 'socks5h://localhost:8088',
+                        '-x', f'socks5h://localhost:{local_port}',
                         '-m', '15', '--connect-timeout', '5', '-s'],
                         stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
                 if p3 is not None:
@@ -64,7 +68,6 @@ def single_test (config, ssr=None):
                     fdset.append(p3.stderr)
                     stage = 2
                 else:
-                    # sys.exit(1) 
                     return False     
 
             if stage == 3 and p3 is not None:
@@ -76,26 +79,19 @@ def single_test (config, ssr=None):
                         sys.exit(1)
                 else:
                     if r != 0:
-                        # sys.exit(1)
                         return False
-                # p4 = Popen(['curl', 'http://ip-api.com/json',
-                #             '-x', 'socks5h://localhost:8088',
-                #             '-m', '15', '--connect-timeout', '5', '-s'],
-                #         stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
                 return True
                 if p4 is not None:
                     fdset.append(p4.stdout)
                     fdset.append(p4.stderr)
                     stage = 4
                 else:
-                    # sys.exit(1)  
                     return False
 
             if stage == 5:
                 r = p4.wait()
                 if config.should_fail:
                     if r == 0:
-                        # sys.exit(1)
                         return False
                     print('test passed (expecting failure)')
                 else:
