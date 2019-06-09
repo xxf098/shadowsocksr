@@ -11,6 +11,7 @@ from sys import argv
 from os.path import isfile,join
 import re
 import random
+import asyncio
 
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
@@ -52,8 +53,8 @@ def single_test (config, ssr=None):
                         stage = 5
                 if bytes != str:
                     line = str(line, 'utf8')
-                # if line.find('DEBUG') < 0 and line.find('INFO') < 0:
-                sys.stderr.write(line)
+                if line.find('DEBUG') < 0 and line.find('INFO') < 0:
+                    sys.stderr.write(line)
                 if line.find('starting local') >= 0:
                     local_ready = True
             
@@ -130,9 +131,16 @@ def main():
     config = parser.parse_args()
     ssrs = [f"./json/{f}" for f in listdir('./json') if isfile(join('./json', f)) and re.match('(.*\.ssr$)|(.*\.json$)', f) ]
     # process pool
-    for ssr in ssrs:
-        test_result = single_test(config, ssr)
-        print(f"{OKGREEN if test_result else FAIL}{ssr}:{test_result}{ENDC}")
+    chunks = [ssrs[x:x+5] for x in range(0, len(ssrs), 5)]
+    loop = asyncio.get_event_loop()
+    # for ssr in ssrs:
+    #     test_result = single_test(config, ssr)
+    #     print(f"{OKGREEN if test_result else FAIL}{ssr}:{test_result}{ENDC}")
+    for chunk in chunks:
+        tasks = [asyncio.coroutine(single_test)(config, ssr) for ssr in chunk ]
+        results = loop.run_until_complete(asyncio.gather(*tasks))
+        for link, result in zip(chunk, results):
+             print(f"{OKGREEN if result else FAIL}{link}:{result}{ENDC}")
 
 
 if __name__ == '__main__':
