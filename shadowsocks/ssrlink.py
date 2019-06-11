@@ -128,8 +128,8 @@ if __name__ == '__main__':
         exit()
     ssrLink = sys.argv[1]
     config = {}
-    if re.match(r'^ss://', re.I):
+    if re.match(r'^ss://', ssrLink, re.I):
         config = parseSS(ssrLink)
-    if re.match(r'^ssr://', re.I):
+    if re.match(r'^ssr://', ssrLink, re.I):
         config = parseSSR(ssrLink)
     print(json.dumps(config, indent=4))
