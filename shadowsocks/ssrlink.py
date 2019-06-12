@@ -132,4 +132,4 @@ if __name__ == '__main__':
         config = parseSS(ssrLink)
     if re.match(r'^ssr://', ssrLink, re.I):
         config = parseSSR(ssrLink)
-    print(json.dumps(config, indent=4))
+    print(json.dumps(config, indent=4, ensure_ascii=False))
