@@ -381,6 +381,10 @@ class MiddlePanelDispaly(SinglePanelDispaly):
     def handle_delete(self):
         ssr_name = self.lines[self.highlight_index]
         remove_ssr(ssr_name)
+        self.lines.pop(self.highlight_index)
+        self.highlight_index = max(0, self.highlight_index - 1)
+        if ssr_name in ssr_names_cache:
+            del ssr_names_cache[ssr_name]
 
 class RightPanelDispaly(SinglePanelDispaly):
 
