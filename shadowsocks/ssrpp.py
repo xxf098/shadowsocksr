@@ -364,6 +364,10 @@ class LeftPanelDispaly(SinglePanelDispaly):
     def handle_delete(self):
         ssr_name = self.lines[self.highlight_index]
         remove_ssr(ssr_name)
+        self.lines.pop(self.highlight_index)
+        self.highlight_index = max(0, self.highlight_index - 1)
+        if ssr_name in ssr_names_cache:
+            del ssr_names_cache[ssr_name]
 
 class MiddlePanelDispaly(SinglePanelDispaly):
 
@@ -383,7 +387,7 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         remove_ssr(ssr_name)
         self.lines.pop(self.highlight_index)
         self.highlight_index = max(0, self.highlight_index - 1)
-        if ssr_name in ssr_names_cache:
+        if ssr_name in ssr_cache:
             del ssr_names_cache[ssr_name]
 
 class RightPanelDispaly(SinglePanelDispaly):
@@ -545,10 +549,8 @@ def remove_ssr(filename):
         if isfile(filepath):
             with open(filepath) as f:
                 lines = f.readlines()
-        if len(lines) < 2:
+        if len(lines) < 2 or not multiple_match:
             os.remove(filepath)
-            return
-        if not multiple_match:
             return
         line_num = int(multiple_match.group(1))
         lines.pop(line_num-1)
