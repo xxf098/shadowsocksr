@@ -362,7 +362,8 @@ class LeftPanelDispaly(SinglePanelDispaly):
         return self.lines[self.highlight_index]
 
     def handle_delete(self):
-        pass
+        ssr_name = self.lines[self.highlight_index]
+        remove_ssr(ssr_name)
 
 class MiddlePanelDispaly(SinglePanelDispaly):
 
@@ -378,7 +379,8 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         return self.lines[self.highlight_index]
 
     def handle_delete(self):
-        pass
+        ssr_name = self.lines[self.highlight_index]
+        remove_ssr(ssr_name)
 
 class RightPanelDispaly(SinglePanelDispaly):
 
@@ -413,6 +415,7 @@ class MultiPanelDisplay:
         Style().setup_color()
 
     def rebuld(self):
+        self.panels = []
         left = LeftPanelDispaly(self, 0)
         middle = MiddlePanelDispaly(self, 1, left_panel=left)
         middle.focused = True
@@ -526,7 +529,8 @@ def preview_ssr(filename):
 
 def remove_ssr(filename):
     ssr_dir = DEFAULT_SSR_DIR
-    del ssr_cache[filename]
+    if filename in ssr_cache:
+        del ssr_cache[filename]
     multiple_match = match_multiple_links_filename(filename)
     filename = re.sub('_\d+_\.', '', filename)
     filepath = f'{ssr_dir}{filename}'
