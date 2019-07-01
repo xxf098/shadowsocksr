@@ -290,7 +290,8 @@ class SinglePanelDispaly:
             'KEY_DOWN': self.handle_key_down,
             'KEY_UP': self.handle_key_up,
             'KEY_LEFT': self.handle_key_left,
-            'KEY_RIGHT': self.handle_key_right
+            'KEY_RIGHT': self.handle_key_right,
+            '\x04': self.handle_delete
         }
         self.highlight_style = Style().attrs_to_style(highlight_style)
         self.highlight_index = 0
@@ -323,6 +324,9 @@ class SinglePanelDispaly:
 
     def handle_key_right(self):
         self.parent.change_foucs(1)
+
+    def handle_delete(self):
+        pass
 
     def handle_key(self, key):
         if not self.focused:
@@ -357,6 +361,9 @@ class LeftPanelDispaly(SinglePanelDispaly):
     def get_selectd(self):
         return self.lines[self.highlight_index]
 
+    def handle_delete(self):
+        pass
+
 class MiddlePanelDispaly(SinglePanelDispaly):
 
     def _setup_data(self):
@@ -369,6 +376,9 @@ class MiddlePanelDispaly(SinglePanelDispaly):
 
     def get_selectd(self):
         return self.lines[self.highlight_index]
+
+    def handle_delete(self):
+        pass
 
 class RightPanelDispaly(SinglePanelDispaly):
 
@@ -435,7 +445,10 @@ class MultiPanelDisplay:
         if key == '\r':
             self.stop = True
             self.selected_server = self.panels[1].get_selectd()
-        if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT']:
+        if key == '\x18': # ctrl-x
+            self.screen.refresh()
+            exit(0)
+        if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04']:
             return
         for panel in self.panels:
             panel.handle_key(key)
