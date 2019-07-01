@@ -48,7 +48,7 @@ ATTRS = {
 }
 
 keyword_style = ("yellow", "bold")
-highlight_style = ("on_gray", "white")
+highlight_style = ("on_gray", "cyan", "bold")
 leader_style = ("magenta", "bold")
 
 
@@ -284,7 +284,7 @@ class SinglePanelDispaly:
         self.lines = []
         self.panel_index = panel_index
         self.focused = False
-        self.left_panel = left_panel 
+        self.left_panel = left_panel
         self.keymap = {
             'KEY_DOWN': self.handle_key_down,
             'KEY_UP': self.handle_key_up,
@@ -305,7 +305,10 @@ class SinglePanelDispaly:
     def draw(self):
         self._setup_data()
         for line, i in zip(self.lines, range(self.height)):
-            style = self.highlight_style if self.focused and i == self.highlight_index else 0
+            style = 0
+            if self.focused and i == self.highlight_index:
+                style = self.highlight_style
+                line = line + ' ' * max(self.width-len(line) - 1, 0)
             self.screen.addnstr(i, 0, line, self.width, style)
 
     def handle_key_down(self):
