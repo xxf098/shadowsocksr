@@ -52,6 +52,8 @@ def main():
     try:
         logging.info("starting local at %s:%d" %
                      (config['local_address'], config['local_port']))
+        logging.info("starting server at %s:%d" %
+                     (config['server'], config['server_port']))
 
         dns_resolver = asyncdns.DNSResolver(config=config)
         tcp_server = tcprelay.TCPRelay(config, dns_resolver, True)
