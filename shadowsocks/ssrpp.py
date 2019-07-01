@@ -285,6 +285,7 @@ class SinglePanelDispaly:
         self.panel_index = panel_index
         self.focused = False
         self.left_panel = left_panel
+        self.padding = 1
         self.keymap = {
             'KEY_DOWN': self.handle_key_down,
             'KEY_UP': self.handle_key_up,
@@ -308,8 +309,8 @@ class SinglePanelDispaly:
             style = 0
             if self.focused and i == self.highlight_index:
                 style = self.highlight_style
-                line = line + ' ' * max(self.width-len(line) - 1, 0)
-            self.screen.addnstr(i, 0, line, self.width, style)
+                line = line + ' ' * max(self.width-len(line) - self.padding, 0)
+            self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
 
     def handle_key_down(self):
         self.highlight_index = min(len(self.lines)-1, self.highlight_index + 1)
@@ -657,6 +658,7 @@ def match_multiple_links_filename(filename):
 # TODO: confirm handle all key fuzzy search
 # TODO: Display as a pip local module
 # TODO: Update every 1s range
-# TODO: count call_back delete
+# TODO: count call_back delete event driven
+# TODO: three panel git
 if __name__ == '__main__':
     main()
