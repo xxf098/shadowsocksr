@@ -49,6 +49,7 @@ ATTRS = {
 
 keyword_style = ("yellow", "bold")
 highlight_style = ("on_gray", "cyan", "bold")
+highlight_style_not_focus = ("on_gray", "white")
 leader_style = ("magenta", "bold")
 
 
@@ -294,6 +295,7 @@ class SinglePanelDispaly:
             '\x04': self.handle_delete
         }
         self.highlight_style = Style().attrs_to_style(highlight_style)
+        self.highlight_style_not_focus = Style().attrs_to_style(highlight_style_not_focus)
         self.highlight_index = 0
         self._setup_data()
 
@@ -308,9 +310,11 @@ class SinglePanelDispaly:
         self._setup_data()
         for line, i in zip(self.lines, range(self.height)):
             style = 0
-            if self.focused and i == self.highlight_index:
-                style = self.highlight_style
-                line = line + ' ' * max(self.width-len(line) - self.padding, 0)
+            if i == self.highlight_index:
+                style = self.highlight_style_not_focus
+                if self.focused:
+                    line = line + ' ' * max(self.width-len(line) - self.padding, 0)
+                    style = self.highlight_style
             self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
 
     def handle_key_down(self):
@@ -391,6 +395,10 @@ class MiddlePanelDispaly(SinglePanelDispaly):
             del ssr_names_cache[ssr_name]
 
 class RightPanelDispaly(SinglePanelDispaly):
+
+    def __init__(self, parent, panel_index, lines=[], left_panel=None):
+        SinglePanelDispaly.__init__(self, parent, panel_index, lines, left_panel)
+        self.highlight_index = -1
 
     def _setup_data(self):
         lines = self.left_panel.sub_data()
