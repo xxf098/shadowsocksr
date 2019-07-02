@@ -349,6 +349,8 @@ class SinglePanelDispaly:
 class LeftPanelDispaly(SinglePanelDispaly):
 
     def _setup_data(self):
+        if len(self.lines) > 0:
+            return
         ssrs = get_path_by_time(self.parent.ssr_dir)
         ssrs = [basename(x) for x in ssrs]
         self.lines = ssrs
@@ -455,7 +457,6 @@ class MultiPanelDisplay:
                 panel.draw()
             self.handle_key()
             self.screen.refresh()
-        # change to callback on_result
         return self.selected_server
 
     def handle_key(self):
