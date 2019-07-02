@@ -281,12 +281,13 @@ class SinglePanelDispaly:
         self.parent = parent
         self.parent_screen = self.parent.screen
         self.screen = self.parent_screen.derwin(0,0,0,0)
-        self.height, self.width = 0, 0
+        self.height, self.width, self.x, self.y = 0, 0, 0, 0
         self.lines = []
         self.panel_index = panel_index
         self.focused = False
         self.left_panel = left_panel
         self.padding = 1
+        self.need_redraw = True
         self.keymap = {
             'KEY_DOWN': self.handle_key_down,
             'KEY_UP': self.handle_key_up,
@@ -305,8 +306,12 @@ class SinglePanelDispaly:
         if start_y != parent_y or start_x != parent_y:
             self.screen.mvderwin(start_y, start_x)
         self.height, self.width = height, width
+        self.y, self.x = (start_y, start_x)
 
     def draw(self):
+        if not self.need_redraw:
+            return
+        self.screen.erase()
         self._setup_data()
         for line, i in zip(self.lines, range(self.height)):
             style = 0
@@ -316,6 +321,10 @@ class SinglePanelDispaly:
                     line = line + ' ' * max(self.width-len(line) - self.padding, 0)
                     style = self.highlight_style
             self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
+        y, x = self.screen.getmaxyx()
+        if y != self.y or x != self.x:
+            self.screen.mvwin(self.y, self.x)
+        self.screen.refresh()
 
     def handle_key_down(self):
         self.highlight_index = min(len(self.lines)-1, self.highlight_index + 1)
@@ -374,6 +383,10 @@ class LeftPanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_names_cache:
             del ssr_names_cache[ssr_name]
+    
+    def draw(self):
+        super().draw()
+        self.need_redraw = self.focused
 
 class MiddlePanelDispaly(SinglePanelDispaly):
 
@@ -452,7 +465,7 @@ class MultiPanelDisplay:
         self.screen.clear()
         k = None
         while not self.stop:
-            self.screen.erase()
+            # self.screen.erase()
             for panel in self.panels:
                 panel.draw()
             self.handle_key()
@@ -482,6 +495,7 @@ class MultiPanelDisplay:
             self.panels[1].focused = True
         if not is_first_foucs and direction == -1:
             self.panels[1].highlight_index = 0
+            self.panels[0].need_redraw = True
             self.panels[0].focused = True
             self.panels[1].focused = False
 
