@@ -353,7 +353,7 @@ class LeftPanelDispaly(SinglePanelDispaly):
         ssrs = [basename(x) for x in ssrs]
         self.lines = ssrs
 
-    def sub_data(self):
+    def preview_data(self):
         ssr_name = self.lines[self.highlight_index]
         if re.match(JSON_FILE_REGEX, ssr_name):
             return [ssr_name]
@@ -376,10 +376,10 @@ class LeftPanelDispaly(SinglePanelDispaly):
 class MiddlePanelDispaly(SinglePanelDispaly):
 
     def _setup_data(self):
-        lines = self.left_panel.sub_data()
+        lines = self.left_panel.preview_data()
         self.lines = lines
 
-    def sub_data(self):
+    def preview_data(self):
         ssr_name = self.lines[self.highlight_index]
         return preview_ssr(ssr_name)
 
@@ -401,7 +401,7 @@ class RightPanelDispaly(SinglePanelDispaly):
         self.highlight_index = -1
 
     def _setup_data(self):
-        lines = self.left_panel.sub_data()
+        lines = self.left_panel.preview_data()
         self.lines = lines
 
 #TODO: signal publish sub
