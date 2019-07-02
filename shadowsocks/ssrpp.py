@@ -546,6 +546,7 @@ def main():
 # TODO: Sort by modify time
 # TODO: JSON Format
 ssr_cache = {}
+ignore_regex = '.*("password"|"server_port").*'
 def preview_ssr(filename):
     ssr_dir = DEFAULT_SSR_DIR
     origin_filename = filename
@@ -562,10 +563,7 @@ def preview_ssr(filename):
     if len(lines) == 0:
         return
     if re.match(JSON_FILE_REGEX, filename):
-        for line in lines:
-            if re.match('(.*password.*)|(.*server_port.*)', line):
-                continue
-            result.append(line.rstrip())
+        result = [x for x in lines if not re.match(ignore_regex, x, re.I)]
         ssr_cache[origin_filename] = result
         return result
     if re.match(SSR_FILE_REGEX, filename):
@@ -573,7 +571,7 @@ def preview_ssr(filename):
         ssr_link = lines[line_num - 1].rstrip()
         cmd = ['python3', f'{BASE_DIR}/shadowsocks/ssrlink.py', ssr_link]
         output = subprocess.check_output(cmd)
-        result.extend(output.decode('utf-8').split('\n'))
+        result.extend([x for x in output.decode('utf-8').split('\n') if not re.match(ignore_regex, x, re.I)])
         ssr_cache[origin_filename] = result
         return result
     # print(filepath)
@@ -725,6 +723,6 @@ def match_multiple_links_filename(filename):
 # TODO: Display as a pip local module
 # TODO: Update every 1s range
 # TODO: count call_back delete event driven
-# TODO: three panel git
+# TODO: three panel git http_proxy power request
 if __name__ == '__main__':
     main()
