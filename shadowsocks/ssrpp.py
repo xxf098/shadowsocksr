@@ -311,8 +311,15 @@ class SinglePanelDispaly:
     def draw(self):
         if not self.need_redraw:
             return
-        self.screen.erase()
         self._setup_data()
+        self._draw_lines()
+        y, x = self.screen.getmaxyx()
+        if y != self.y or x != self.x:
+            self.screen.mvwin(self.y, self.x)
+        self.screen.refresh()
+
+    def _draw_lines(self):
+        self.screen.erase()
         for line, i in zip(self.lines, range(self.height)):
             style = 0
             if i == self.highlight_index:
@@ -321,10 +328,6 @@ class SinglePanelDispaly:
                     line = line + ' ' * max(self.width-len(line) - self.padding, 0)
                     style = self.highlight_style
             self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
-        y, x = self.screen.getmaxyx()
-        if y != self.y or x != self.x:
-            self.screen.mvwin(self.y, self.x)
-        self.screen.refresh()
 
     def handle_key_down(self):
         self.highlight_index = min(len(self.lines)-1, self.highlight_index + 1)
@@ -408,6 +411,23 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_cache:
             del ssr_names_cache[ssr_name]
+
+    def _draw_lines(self):
+        if not self.focused:
+            self.screen.erase()
+        for line, i in zip(self.lines, range(self.height)):
+            if self.focused:
+                if self.highlight_index > 0 and abs(i-self.highlight_index) > 1:
+                    continue
+                curses.setsyx(i, self.x)
+                self.screen.clrtoeol()
+            style = 0
+            if i == self.highlight_index:
+                style = self.highlight_style_not_focus
+                if self.focused:
+                    line = line + ' ' * max(self.width-len(line) - self.padding, 0)
+                    style = self.highlight_style
+            self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
 
 class RightPanelDispaly(SinglePanelDispaly):
 
