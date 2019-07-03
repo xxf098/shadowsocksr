@@ -446,11 +446,20 @@ class RightPanelDispaly(SinglePanelDispaly):
         lines = self.left_panel.preview_data()
         self.lines = lines
 
+    def _draw_lines(self):
+        self.screen.erase()
+        for line, i in zip(self.lines, range(self.height)):
+            style, line = self.get_highlight_line(line) if i == self.highlight_index else (0, line)
+            max_len = self.width - self.padding
+            ch_count = sum([ord(x) > 0x3000 for x in line])
+            line = line[0:max_len-ch_count]
+            self.screen.addnstr(i, self.padding, line, max_len, style)
+
 #TODO: signal publish sub
 class MultiPanelDisplay:
 
     def __init__(self, screen):
-        self.ratios = [0.3, 0.25, 0.45]
+        self.ratios = [0.35, 0.25, 0.4]
         self.stop = False
         self.selected_server = ''
         self.screen = screen
