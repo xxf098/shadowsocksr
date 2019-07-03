@@ -321,12 +321,7 @@ class SinglePanelDispaly:
     def _draw_lines(self):
         self.screen.erase()
         for line, i in zip(self.lines, range(self.height)):
-            style = 0
-            if i == self.highlight_index:
-                style = self.highlight_style_not_focus
-                if self.focused:
-                    line = line + ' ' * max(self.width-len(line) - self.padding, 0)
-                    style = self.highlight_style
+            style, line = self.get_highlight_line(line) if i == self.highlight_index else (0, line)
             self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
 
     def handle_key_down(self):
@@ -354,8 +349,12 @@ class SinglePanelDispaly:
     def _setup_data(self):
         pass
 
-    def get_right(self):
-        pass
+    def get_highlight_line(self, line):
+        style = self.highlight_style_not_focus
+        if self.focused:
+            line = line + ' ' * max(self.width-len(line) - self.padding, 0)
+            style = self.highlight_style
+        return style, line
 
 # add cache
 class LeftPanelDispaly(SinglePanelDispaly):
@@ -386,7 +385,7 @@ class LeftPanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_names_cache:
             del ssr_names_cache[ssr_name]
-    
+
     def draw(self):
         super().draw()
         self.need_redraw = self.focused
@@ -723,6 +722,6 @@ def match_multiple_links_filename(filename):
 # TODO: Display as a pip local module
 # TODO: Update every 1s range
 # TODO: count call_back delete event driven
-# TODO: three panel git http_proxy power request
+# TODO: three panel git http_proxy power request add index sort options file info
 if __name__ == '__main__':
     main()
