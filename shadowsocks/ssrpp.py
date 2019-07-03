@@ -390,6 +390,14 @@ class LeftPanelDispaly(SinglePanelDispaly):
         super().draw()
         self.need_redraw = self.focused
 
+    def get_highlight_line(self, line):
+        style = self.highlight_style_not_focus
+        if self.focused:
+            index_str = str(self.highlight_index)
+            line = line + ' ' * max(self.width-len(line) - self.padding -len(index_str), 0) + index_str
+            style = self.highlight_style
+        return style, line
+
 class MiddlePanelDispaly(SinglePanelDispaly):
 
     def _setup_data(self):
