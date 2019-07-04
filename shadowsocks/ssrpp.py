@@ -547,8 +547,9 @@ def main():
     if not os.path.isdir(ssr_dir):
         raise Exception('Path is not a directory')
     ssrs = get_path_by_time(ssr_dir)
-    ssr_names = get_ssrnames(ssrs)
-    selected_server = select_ssr_names(ssr_names)
+    get_ssrnames(ssrs)
+    # multiple thread read all data into cache
+    selected_server = select_ssr_names()
     if selected_server is None:
         return
     cmd = build_cmd(selected_server, ssr_dir)
@@ -669,6 +670,7 @@ def get_path_by_time(dir):
         ssrs = [x[0] for x in ssrs]
     return ssrs
 
+#TODO: threads
 ssr_names_cache = {}
 def get_ssrnames(ssrs):
     ssr_names = []
@@ -695,7 +697,7 @@ def get_ssrnames(ssrs):
                 ssr_names_cache[filename] = new_names
     return ssr_names
 
-def select_ssr_names(names):
+def select_ssr_names():
     try:
         screen = curses.initscr()
         display = MultiPanelDisplay(screen)
