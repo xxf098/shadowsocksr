@@ -8,6 +8,7 @@ Feature
 * Asyncio based eventloop
 * Query DNS on startup
 * Support test multiple ssr configs
+* A command line ssr client ssrpp.py
 
 Example
 ------
@@ -18,3 +19,11 @@ To run from a SSR link:
 To run from a config file:
 
     python3 ./shadowsocks/local.py -L /path/to/config.json
+
+Start command line client
+
+    ./shadowsocks/ssrpp.py
+
+Add ssr subscription
+
+    ./shadowsocks/ssrpp.py --sub https://subscription.ssr.com
