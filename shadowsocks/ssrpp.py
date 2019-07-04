@@ -705,6 +705,8 @@ def select_ssr_names(names):
         display.rebuld()
         result = display.draw()
         return result
+    except KeyboardInterrupt:
+        exit(1)
     finally:
         screen.keypad(0)
         curses.echo()
