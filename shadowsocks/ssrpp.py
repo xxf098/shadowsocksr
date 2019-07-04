@@ -514,9 +514,6 @@ class MultiPanelDisplay:
         if key == '\r':
             self.stop = True
             self.selected_server = self.panels[1].get_selectd()
-        if key == '\x18': # ctrl-x
-            self.screen.refresh()
-            exit(0)
         if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04']:
             return
         for panel in self.panels:
