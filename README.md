@@ -10,6 +10,10 @@ Feature
 * Support test multiple ssr configs
 * A command line ssr client ssrpp.py
 
+SSR Client
+------
+![alt text](https://raw.githubusercontent.com/xxf098/shadowsocksr/xxf098/master/img/ssrpp.jpg)
+
 Example
 ------
 To run from a SSR link:
@@ -20,7 +24,7 @@ To run from a config file:
 
     python3 ./shadowsocks/local.py -L /path/to/config.json
 
-Start command line client
+Start ssr client
 
     ./shadowsocks/ssrpp.py
 
