@@ -55,7 +55,6 @@ highlight_style = ("on_gray", "cyan", "bold")
 highlight_style_not_focus = ("on_gray", "white")
 leader_style = ("magenta", "bold")
 
-
 def get_attributes(attrs):
     for attr in attrs:
         if attr in ATTRS:
@@ -112,7 +111,6 @@ class Display():
 
     def get_pair_number(self, fg, bg):
         if self.has_default_colors:
-            # Assume the number of colors is up to 16 (2^4 = 16)
             return self.get_normalized_number(fg) | (self.get_normalized_number(bg) << 4)
         else:
             return self.get_normalized_number(fg) + self.get_normalized_number(bg) * COLOR_COUNT
@@ -127,7 +125,6 @@ class Display():
         style = self.get_color_pair(get_fg_color(attrs), get_bg_color(attrs))
         for attr in get_attributes(attrs):
             style |= attr
-
         return style
 
     def display_results(self, query, k):
@@ -240,6 +237,11 @@ class Display():
                     number = number_match.group(1)
                     self.filter_results[index] = re.sub('\._\d+_\.', f'._{int(number_match.group(1))-1}_.', name)
 
+class Setting:
+
+    def __init__(self):
+        pass
+
 class Style:
 
     def __init__(self):
@@ -260,7 +262,6 @@ class Style:
 
     def get_pair_number(self, fg, bg):
         if self.has_default_colors:
-            # Assume the number of colors is up to 16 (2^4 = 16)
             return self.get_normalized_number(fg) | (self.get_normalized_number(bg) << 4)
         else:
             return self.get_normalized_number(fg) + self.get_normalized_number(bg) * COLOR_COUNT
@@ -718,7 +719,7 @@ def select_ssr_names():
         result = display.draw()
         return result
     except KeyboardInterrupt:
-        exit(1)
+        exit(0)
     finally:
         screen.keypad(0)
         curses.echo()
