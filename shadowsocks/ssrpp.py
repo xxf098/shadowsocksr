@@ -13,6 +13,9 @@ import base64
 import curses
 import argparse
 import traceback
+import asyncio
+from functools import reduce
+import operator
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -548,7 +551,6 @@ def main():
         raise Exception('Path is not a directory')
     ssrs = get_path_by_time(ssr_dir)
     get_ssrnames(ssrs)
-    # multiple thread read all data into cache
     selected_server = select_ssr_names()
     if selected_server is None:
         return
@@ -670,31 +672,42 @@ def get_path_by_time(dir):
         ssrs = [x[0] for x in ssrs]
     return ssrs
 
-#TODO: threads
 ssr_names_cache = {}
 def get_ssrnames(ssrs):
+    if len(ssrs) == 0:
+        return []
+    if len(ssrs) == 1:
+        ssr_name = basename(ssrs[0])
+        if ssr_name in ssr_names_cache:
+            return ssr_names_cache[ssr_name]
+    tasks = [get_ssrname(x) for x in ssrs]
+    loop = asyncio.get_event_loop()
+    ssr_names = loop.run_until_complete(asyncio.gather(*tasks))
+    ssr_names = reduce(operator.concat, ssr_names)
+    return ssr_names
+
+async def get_ssrname(ssr):
     ssr_names = []
-    for ssr in ssrs:
-        filename = basename(ssr)
-        if filename in ssr_names_cache:
-            return ssr_names_cache[filename]
-        if re.match(JSON_FILE_REGEX, ssr):
-            ssr_names.append(filename)
-        if re.match(SSR_FILE_REGEX, ssr):
-            with open(ssr) as f:
-                lines = f.readlines()
-                if len(lines) == 1:
-                    ssr_names.append(filename)
-                    continue
-                name_parts = filename.split('.')
-                name_parts.insert(-1, '0')
-                new_names = []
-                for line in lines:
-                    if re.match(SSR_LINK_REGEX, line):
-                        name_parts[-2] = '_' + str(len(new_names) + 1) + '_'
-                        new_names.append('.'.join(name_parts))
-                ssr_names.extend(new_names)
-                ssr_names_cache[filename] = new_names
+    filename = basename(ssr)
+    if filename in ssr_names_cache:
+        return ssr_names_cache[filename]
+    if re.match(JSON_FILE_REGEX, ssr):
+        ssr_names.append(filename)
+    if re.match(SSR_FILE_REGEX, ssr):
+        with open(ssr) as f:
+            lines = f.readlines()
+            if len(lines) == 1:
+                ssr_names.append(filename)
+                return ssr_names
+            name_parts = filename.split('.')
+            name_parts.insert(-1, '0')
+            new_names = []
+            for line in lines:
+                if re.match(SSR_LINK_REGEX, line):
+                    name_parts[-2] = '_' + str(len(new_names) + 1) + '_'
+                    new_names.append('.'.join(name_parts))
+            ssr_names.extend(new_names)
+            ssr_names_cache[filename] = new_names
     return ssr_names
 
 def select_ssr_names():
@@ -740,6 +753,6 @@ def match_multiple_links_filename(filename):
 # TODO: Display as a pip local module
 # TODO: Update every 1s range
 # TODO: count call_back delete event driven
-# TODO: three panel git http_proxy power request add index sort options file info
+# TODO: three panel git http_proxy power request add index sort options file info setting
 if __name__ == '__main__':
     main()
