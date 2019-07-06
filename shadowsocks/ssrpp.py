@@ -240,7 +240,9 @@ class Display():
 class Setting:
 
     def __init__(self):
-        pass
+        self.hide_fields = ['password', 'server_port']
+        self.basedir = BASE_DIR
+        self.ratios = [0.35, 0.25, 0.4]
 
 class Style:
 
@@ -580,7 +582,7 @@ def preview_ssr(filename):
     if len(lines) == 0:
         return
     if re.match(JSON_FILE_REGEX, filename):
-        result = [x for x in lines if not re.match(ignore_regex, x, re.I)]
+        result = [replace_hide_field(x) for x in lines]
         ssr_cache[origin_filename] = result
         return result
     if re.match(SSR_FILE_REGEX, filename):
@@ -588,10 +590,19 @@ def preview_ssr(filename):
         ssr_link = lines[line_num - 1].rstrip()
         cmd = ['python3', f'{BASE_DIR}/shadowsocks/ssrlink.py', ssr_link]
         output = subprocess.check_output(cmd)
-        result.extend([x for x in output.decode('utf-8').split('\n') if not re.match(ignore_regex, x, re.I)])
+        result.extend([replace_hide_field(x) for x in output.decode('utf-8').split('\n')])
         ssr_cache[origin_filename] = result
         return result
     # print(filepath)
+
+def replace_hide_field(x):
+    if re.match('\s+"server_port":\s+\d+,?$', x, re.I):
+        result = re.sub(':\s+\d+', ': 0', x)
+        return result
+    if re.match('\s+"password":\s+.+,?$', x, re.I):
+        result = re.sub(':\s+".*"', ': "******"', x)
+        return result
+    return x
 
 def remove_ssr(filename):
     ssr_dir = DEFAULT_SSR_DIR
@@ -755,5 +766,6 @@ def match_multiple_links_filename(filename):
 # TODO: Update every 1s range
 # TODO: count call_back delete event driven
 # TODO: three panel git http_proxy power request add index sort options file info setting
+# TODO: kill process
 if __name__ == '__main__':
     main()
