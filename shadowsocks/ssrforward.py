@@ -1,7 +1,11 @@
 import asyncio
 import logging
 import sys
+import socket
 from collections import namedtuple
+from struct import pack, unpack
+import datetime
+
 logger = logging.getLogger('ssrforward')
 CRLF, COLON, SP = b'\r\n', b':', b' '
 PY3 = sys.version_info[0] == 3
@@ -15,25 +19,44 @@ def client_connection(reader, writer):
 
 async def client_task(reader, writer):
     data = await reader.read(default_buf_size)
-    proxy = Proxy()
-    proxy.negotiate_http(data)
+    client = Client(reader, writer, writer.get_extra_info('peername'))
+    proxy = Proxy(client)
+    await proxy.negotiate_http(data)
 
 class Proxy(object):
 
-    def __init__(self):
+    def __init__(self, client):
         self.sock5_addr = ('127.0.0.1', 8088)
         self.request = HttpParser(HttpParser.types.REQUEST_PARSER)
         self.response = HttpParser(HttpParser.types.RESPONSE_PARSER)
+
+        self.client = client
+        self.client_recvbuf_size = default_buf_size
+        self.server = None
+        self.server_recvbuf_size = default_buf_size
     
-    def negotiate_http(self, data):
+    @staticmethod
+    def _now():
+        return datetime.datetime.utcnow()
+    
+    async def negotiate_http(self, data):
         self.request.parse(data)
         if self.request.state == HttpParser.states.COMPLETE:
             if self.request.method == b'CONNECT':
-                host, port = request.url.path.split(COLON)
-            elif request.url:
-                host, port = request.url.hostname, request.url.port if request.url.port else 80
+                host, port = self.request.url.path.split(COLON)
+            elif self.request.url:
+                host, port = self.request.url.hostname, self.request.url.port if self.request.url.port else 80
             else:
-                raise Exception('Invalid request\n%s' % request.raw)        
+                raise Exception('Invalid request\n%s' % request.raw)
+
+        self.server = Socks5Server(*self.sock5_addr)
+        try:
+            logger.debug('connecting to server %s:%s' % (host, port))
+            await self.server.connect(host, port)
+            logger.debug('connected to server %s:%s' % (host, port))
+        except Exception as e:  # TimeoutError, socket.gaierror
+            self.server.closed = True
+            raise ProxyConnectionFailed(host, port, repr(e))              
 
 # send receive data
 class Connection(object):
@@ -87,6 +110,47 @@ class Connection(object):
         self.buffer = self.buffer[sent:]
         logger.debug('flushed %d bytes to %s' % (sent, self.what))
 
+class Client(Connection):
+    """Accepted client connection."""
+
+    def __init__(self, reader, writer, addr):
+        super(Client, self).__init__(b'client')
+        self.reader = reader
+        self.writer = writer
+        self.addr = addr
+
+class Socks5Server(Connection):
+
+    def __init__(self, host, port):
+        super(Socks5Server, self).__init__(b'server')
+        self.addr = (host, int(port))
+
+    def __del__(self):
+        if self.writer:
+            asyncio.ensure_future(self.close())
+
+    async def connect(self, host, port):
+        reader, writer = await asyncio.open_connection(host=self.addr[0],
+                port=self.addr[1],
+                family=socket.AF_INET)
+        self.reader = reader
+        self.writer = writer
+        await self.send(b'\x05\x01\x00')
+        response = await self.recv()
+        if (response != b'\x05\x00'):
+            raise Exception('Fail to connect to sock5 server')
+        self.remote_addr = (host, port)
+        #TODO: ATYP x03
+        host_len = pack('!H', len(host))
+        if (host_len[0] == 0):
+            host_len = host_len.decode()[1].encode()
+        port = int(port.decode()) if type(port) == bytes else port
+        msg = host_len + host + pack('!H', port)
+        msg = b'\x05\x01\x00\x03' + msg
+        await self.send(msg)
+        response = await self.recv()
+        if (response[0:4] != b'\x05\x00\x00\x01'):
+            raise Exception('Fail to connect to sock5 server')        
 class ChunkParser(object):
 
     def __init__(self):
@@ -268,6 +332,16 @@ class HttpParser(object):
         line = data[:pos]
         data = data[pos + len(CRLF):]
         return line, data
+
+class ProxyConnectionFailed(Exception):
+
+    def __init__(self, host, port, reason):
+        self.host = host
+        self.port = port
+        self.reason = reason
+
+    def __str__(self):
+        return '<ProxyConnectionFailed - %s:%s - %s>' % (self.host, self.port, self.reason)
 
 #TODO: polipo
 #TODO: authcode
