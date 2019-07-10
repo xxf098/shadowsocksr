@@ -5,24 +5,29 @@ import socket
 from collections import namedtuple
 from struct import pack, unpack
 import datetime
+import select
 
 logger = logging.getLogger('ssrforward')
 CRLF, COLON, SP = b'\r\n', b':', b' '
+PROXY_AGENT_HEADER = b'Proxy-agent: socks5 forward v1'
+PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT = CRLF.join([
+    b'HTTP/1.1 200 Connection established',
+    PROXY_AGENT_HEADER,
+    CRLF
+])
+
 PY3 = sys.version_info[0] == 3
 text_type = str
 binary_type = bytes
 from urllib import parse as urlparse
-
+from concurrent.futures import ThreadPoolExecutor
+executor = ThreadPoolExecutor(18)
 default_buf_size=8192
+
 def client_connection(reader, writer):
-    task = asyncio.ensure_future(client_task(reader, writer))
-
-async def client_task(reader, writer):
-    data = await reader.read(default_buf_size)
-    client = Client(reader, writer, writer.get_extra_info('peername'))
+    client = Client(writer._transport._sock, writer.get_extra_info('peername'))
     proxy = Proxy(client)
-    await proxy.negotiate_http(data)
-
+    executor.submit(proxy.run)
 class Proxy(object):
 
     def __init__(self, client):
@@ -34,12 +39,23 @@ class Proxy(object):
         self.client_recvbuf_size = default_buf_size
         self.server = None
         self.server_recvbuf_size = default_buf_size
+
+        self.start_time = self._now()
+        self.last_activity = self.start_time
     
     @staticmethod
     def _now():
         return datetime.datetime.utcnow()
+
+    def _inactive_for(self):
+        return (self._now() - self.last_activity).seconds
     
-    async def negotiate_http(self, data):
+    def _is_inactive(self):
+        return self._inactive_for() > 30    
+    
+    def _negotiate(self):
+        data = self.client.recv(self.client_recvbuf_size)
+        self.last_activity = self._now()
         self.request.parse(data)
         if self.request.state == HttpParser.states.COMPLETE:
             if self.request.method == b'CONNECT':
@@ -52,32 +68,140 @@ class Proxy(object):
         self.server = Socks5Server(*self.sock5_addr)
         try:
             logger.debug('connecting to server %s:%s' % (host, port))
-            await self.server.connect(host, port)
+            self.server.connect(host, port)
             logger.debug('connected to server %s:%s' % (host, port))
         except Exception as e:  # TimeoutError, socket.gaierror
             self.server.closed = True
-            raise ProxyConnectionFailed(host, port, repr(e))              
+            raise ProxyConnectionFailed(host, port, repr(e)) 
+        
+        if self.request.method == b'CONNECT':
+            # connection success then send to client
+            # b'HTTP/1.1 200 Connection established\r\nProxy-agent: proxy.py v0.4\r\n\r\n'
+            self.client.queue(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT)
+        # for usual http requests, re-build request packet
+        # and queue for the server with appropriate headers
+        else:
+            self.server.queue(self.request.build(
+                del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
+                add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
+            ))              
 
-# send receive data
+    def run(self):
+        logger.debug('Proxying connection %r' % self.client.conn)
+        try:
+            self._negotiate()
+            self._process()
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            logger.exception('Exception while handling connection %r with reason %r' % (self.client.conn, e))
+        finally:
+            logger.debug(
+                'closing client connection with pending client buffer size %d bytes' % self.client.buffer_size())
+            self.client.close()
+            if self.server:
+                logger.debug(
+                    'closed client connection with pending server buffer size %d bytes' % self.server.buffer_size())
+            self._access_log()
+            logger.debug('Closing proxy for connection %r at address %r' % (self.client.conn, self.client.addr))
+
+    def _process(self):
+        while True:
+            rlist, wlist, xlist = self._get_waitable_lists()
+            r, w, x = select.select(rlist, wlist, xlist, 1)
+
+            self._process_wlist(w)
+            if self._process_rlist(r):
+                break
+            if self.client.buffer_size() == 0:
+                if self.response.state == HttpParser.states.COMPLETE:
+                    logger.debug('client buffer is empty and response state is complete, breaking')
+                    break
+                if self._is_inactive():
+                    logger.debug('client buffer is empty and maximum inactivity has reached, breaking')
+                    break
+    
+    def _process_rlist(self, r):
+        if self.client.conn in r:
+            data = self.client.recv(self.client_recvbuf_size)
+            self.last_activity = self._now()
+            if not data:
+                logger.debug('client closed connection, breaking')
+                return True
+            if self.server and not self.server.closed:
+                self.server.queue(data)
+                return False
+
+        if self.server and not self.server.closed and self.server.conn in r:
+            logger.debug('server is ready for reads, reading')
+            data = self.server.recv(self.server_recvbuf_size)
+            self.last_activity = self._now()
+
+            if not data:
+                logger.debug('server closed connection')
+                self.server.close()
+            else:
+                # pipe data to client socket
+                self._process_response(data)
+        return False
+            
+
+    def _process_wlist(self, w):
+        if self.client.conn in w:
+            logger.debug('client is ready for writes, flushing client buffer')
+            self.client.flush()
+
+        if self.server and not self.server.closed and self.server.conn in w:
+            logger.debug('server is ready for writes, flushing server buffer')
+            self.server.flush()    
+
+    def _get_waitable_lists(self):
+        rlist, wlist, xlist = [self.client.conn], [], []
+        if self.client.has_buffer():
+            wlist.append(self.client.conn)
+        if self.server and not self.server.closed:
+            rlist.append(self.server.conn)
+        if self.server and not self.server.closed and self.server.has_buffer():
+            wlist.append(self.server.conn)
+        return rlist, wlist, xlist
+
+    def _process_response(self, data):
+        # parse incoming response packet
+        # only for non-https requests
+        if not self.request.method == b'CONNECT':
+            # not run
+            # self.response.parse(data)
+            raise NotImplementedError()
+
+        # queue data for client
+        self.client.queue(data)
+    
+    def _access_log(self):
+        host, port = self.server.addr if self.server else (None, None)
+        if self.request.method == b'CONNECT':
+            logger.info(
+                '%s:%s - %s %s:%s' % (self.client.addr[0], self.client.addr[1], self.request.method, host, port))
+        elif self.request.method:
+            logger.info('%s:%s - %s %s:%s%s - %s %s - %s bytes' % (
+                self.client.addr[0], self.client.addr[1], self.request.method, host, port, self.request.build_url(),
+                self.response.code, self.response.reason, len(self.response.raw)))
+
 class Connection(object):
     """TCP server/client connection abstraction."""
 
     def __init__(self, what):
-        self.reader = None
-        self.writer = None
+        self.conn = None
         self.buffer = b''
         self.closed = False
         self.what = what  # server or client
 
-    async def send(self, data):
+    def send(self, data):
         # TODO: Gracefully handle BrokenPipeError exceptions
-        self.writer.write(data)
-        await self.writer.drain()
-        return len(data)
+        return self.conn.send(data)
 
-    async def recv(self, bufsiz=8192):
+    def recv(self, bufsiz=8192):
         try:
-            data = await self.reader.read(bufsiz)
+            data = self.conn.recv(bufsiz)
             if len(data) == 0:
                 logger.debug('rcvd 0 bytes from %s' % self.what)
                 return None
@@ -91,9 +215,8 @@ class Connection(object):
                     'Exception while receiving from connection %s %r with reason %r' % (self.what, self.conn, e))
             return None
 
-    async def close(self):
-        self.writer.close()
-        await writer.wait_closed()
+    def close(self):
+        self.conn.close()
         self.closed = True
 
     def buffer_size(self):
@@ -113,10 +236,9 @@ class Connection(object):
 class Client(Connection):
     """Accepted client connection."""
 
-    def __init__(self, reader, writer, addr):
+    def __init__(self, conn, addr):
         super(Client, self).__init__(b'client')
-        self.reader = reader
-        self.writer = writer
+        self.conn = conn
         self.addr = addr
 
 class Socks5Server(Connection):
@@ -126,17 +248,13 @@ class Socks5Server(Connection):
         self.addr = (host, int(port))
 
     def __del__(self):
-        if self.writer:
-            asyncio.ensure_future(self.close())
+        if self.conn:
+            self.close()
 
-    async def connect(self, host, port):
-        reader, writer = await asyncio.open_connection(host=self.addr[0],
-                port=self.addr[1],
-                family=socket.AF_INET)
-        self.reader = reader
-        self.writer = writer
-        await self.send(b'\x05\x01\x00')
-        response = await self.recv()
+    def connect(self, host, port):
+        self.conn = socket.create_connection((self.addr[0], self.addr[1]))
+        self.send(b'\x05\x01\x00')
+        response = self.recv()
         if (response != b'\x05\x00'):
             raise Exception('Fail to connect to sock5 server')
         self.remote_addr = (host, port)
@@ -147,10 +265,11 @@ class Socks5Server(Connection):
         port = int(port.decode()) if type(port) == bytes else port
         msg = host_len + host + pack('!H', port)
         msg = b'\x05\x01\x00\x03' + msg
-        await self.send(msg)
-        response = await self.recv()
+        self.send(msg)
+        response = self.recv()
         if (response[0:4] != b'\x05\x00\x00\x01'):
-            raise Exception('Fail to connect to sock5 server')        
+            raise Exception('Fail to connect to sock5 server')
+
 class ChunkParser(object):
 
     def __init__(self):
