@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 PY3 = sys.version_info[0] == 3
 text_type = str
 binary_type = bytes
-version=1
+version=b'1'
 from urllib import parse as urlparse
 
 
