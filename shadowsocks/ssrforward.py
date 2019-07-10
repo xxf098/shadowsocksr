@@ -12,6 +12,7 @@ import datetime
 import threading
 from collections import namedtuple
 from struct import pack, unpack
+from concurrent.futures import ThreadPoolExecutor
 
 if os.name != 'nt':
     import resource
@@ -659,7 +660,8 @@ class TCP(object):
         self.port = port
         self.backlog = backlog
         self.socket = None
-
+        self.executor = ThreadPoolExecutor(max_workers=20)
+        
     def handle(self, client):
         raise NotImplementedError()
 
@@ -681,8 +683,9 @@ class TCP(object):
         finally:
             logger.info('Closing server socket')
             self.socket.close()
+            self.executor.shutdown()
 
-from concurrent.futures import ThreadPoolExecutor
+
 class HTTP(TCP):
     """HTTP proxy server implementation.
 
@@ -696,7 +699,6 @@ class HTTP(TCP):
         self.client_recvbuf_size = client_recvbuf_size
         self.server_recvbuf_size = server_recvbuf_size
         self.pac_file = pac_file
-        self.executor = ThreadPoolExecutor(18)
 
     def handle(self, client):
         proxy = Proxy(client,
