@@ -683,7 +683,7 @@ class TCP(object):
         finally:
             logger.info('Closing server socket')
             self.socket.close()
-            self.executor.shutdown()
+            self.executor.shutdown(wait=False)
 
 
 class HTTP(TCP):
