@@ -46,7 +46,7 @@ def bytes_(s, encoding='utf-8', errors='strict'):   # pragma: no cover
     return s
 
 CRLF, COLON, SP = b'\r\n', b':', b' '
-PROXY_AGENT_HEADER = b'Proxy-agent: socks5 forward v1'
+PROXY_AGENT_HEADER = b'Proxy-agent: ssrforward v1'
 
 PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT = CRLF.join([
     b'HTTP/1.1 200 Connection established',
@@ -463,8 +463,8 @@ class Proxy(object):
     def _inactive_for(self):
         return (self._now() - self.last_activity).seconds
 
-    def _is_inactive(self):
-        return self._inactive_for() > 30
+    def _is_inactive(self, timeout_sec=30):
+        return self._inactive_for() > timeout_sec
 
     # parse header or pipe data to server socket
     def _process_request(self, data):
@@ -518,12 +518,12 @@ class Proxy(object):
 
     def _process_rlist(self, r):
         """Returns True if connection to client must be closed."""
+        self.last_activity = self._now()
         if self.client.conn in r:
             logger.debug('client is ready for reads, reading')
             # b'CONNECT cn.bing.com:443 HTTP/1.1\r\nHost: cn.bing.com:443\r\nProxy-Connection: keep-alive\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/73.0.3683.75 Chrome/73.0.3683.75 Safari/537.36\r\n\r\n'
             # b'CONNECT api.ip.sb:443 HTTP/1.1\r\nHost: api.ip.sb:443\r\nProxy-Connection: keep-alive\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/73.0.3683.75 Chrome/73.0.3683.75 Safari/537.36\r\n\r\n'
             data = self.client.recv(self.client_recvbuf_size)
-            self.last_activity = self._now()
 
             if not data:
                 logger.debug('client closed connection, breaking')
@@ -544,7 +544,6 @@ class Proxy(object):
         if self.server and not self.server.closed and self.server.conn in r:
             logger.debug('server is ready for reads, reading')
             data = self.server.recv(self.server_recvbuf_size)
-            self.last_activity = self._now()
 
             if not data:
                 logger.debug('server closed connection')
@@ -579,18 +578,6 @@ class Proxy(object):
                 host, port = self.request.url.hostname, self.request.url.port if self.request.url.port else 80
             else:
                 raise Exception('Invalid request\n%s' % request.raw)
-
-        if self.request.method == b'CONNECT':
-            # connection success then send to client
-            # b'HTTP/1.1 200 Connection established\r\nProxy-agent: ssrforward v0.4\r\n\r\n'
-            self.client.queue(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT)
-        # for usual http requests, re-build request packet
-        # and queue for the server with appropriate headers
-        else:
-            self.server.queue(self.request.build(
-                del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
-                add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
-            ))
         return host, port
     
     def _negotiate_socks5(self, host, port):
@@ -606,6 +593,18 @@ class Proxy(object):
     def _negotiate(self):
         host, port = self._negotiate_http()
         self._negotiate_socks5(host, port)
+
+        if self.request.method == b'CONNECT':
+            # connection success then send to client
+            # b'HTTP/1.1 200 Connection established\r\nProxy-agent: ssrforward v0.4\r\n\r\n'
+            self.client.queue(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT)
+        # for usual http requests, re-build request packet
+        # and queue for the server with appropriate headers
+        else:
+            self.server.queue(self.request.build(
+                del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
+                add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
+            ))
         
     def _process(self):
         while True:
@@ -624,6 +623,10 @@ class Proxy(object):
                 if self._is_inactive():
                     logger.debug('client buffer is empty and maximum inactivity has reached, breaking')
                     break
+            
+            if self._is_inactive(60):
+                logger.warning('timeout reached, breaking')
+                break
 
     @staticmethod
     def _get_response_pkt_by_exception(e):
@@ -661,7 +664,7 @@ class TCP(object):
     Subclass MUST implement `handle` method. It accepts an instance of accepted `Client` connection.
     """
 
-    def __init__(self, hostname='127.0.0.1', port=9050, backlog=100):
+    def __init__(self, hostname='127.0.0.1', port=9050, backlog=120):
         self.hostname = hostname
         self.port = port
         self.backlog = backlog
