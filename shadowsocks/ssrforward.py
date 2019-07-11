@@ -384,7 +384,6 @@ class Socks5Server(Connection):
         if self.conn:
             self.close()
 
-    # TODO: dns resolve ip address
     def connect(self, host, port):
         self.conn = socket.create_connection((self.addr[0], self.addr[1]))
         self.send(pack('3B', 5, 1, 0))
@@ -571,6 +570,8 @@ class Proxy(object):
     
     def _negotiate_http(self):
         data = self.client.recv(self.client_recvbuf_size)
+        if not data:
+            raise Exception('Fail to receive data from client')
         self.last_activity = self._now()
         self.request.parse(data)
         if self.request.state == HttpParser.states.COMPLETE:
