@@ -374,10 +374,10 @@ class Server(Connection):
     def connect(self):
         self.conn = socket.create_connection((self.addr[0], self.addr[1]))
 
-class Sock5Server(Connection):
+class Socks5Server(Connection):
 
     def __init__(self, host, port):
-        super(Sock5Server, self).__init__(b'server')
+        super(Socks5Server, self).__init__(b'server')
         self.addr = (host, int(port))
 
     def __del__(self):
@@ -568,7 +568,7 @@ class Proxy(object):
 
         self.client.flush()
     
-    def _negotiate(self):
+    def _negotiate_http(self):
         data = self.client.recv(self.client_recvbuf_size)
         self.last_activity = self._now()
         self.request.parse(data)
@@ -580,18 +580,9 @@ class Proxy(object):
             else:
                 raise Exception('Invalid request\n%s' % request.raw)
 
-        self.server = Sock5Server(*self.sock5_addr)
-        try:
-            logger.debug('connecting to server %s:%s' % (host, port))
-            self.server.connect(host, port)
-            logger.debug('connected to server %s:%s' % (host, port))
-        except Exception as e:  # TimeoutError, socket.gaierror
-            self.server.closed = True
-            raise ProxyConnectionFailed(host, port, repr(e)) 
-        
         if self.request.method == b'CONNECT':
             # connection success then send to client
-            # b'HTTP/1.1 200 Connection established\r\nProxy-agent: proxy.py v0.4\r\n\r\n'
+            # b'HTTP/1.1 200 Connection established\r\nProxy-agent: ssrforward v0.4\r\n\r\n'
             self.client.queue(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT)
         # for usual http requests, re-build request packet
         # and queue for the server with appropriate headers
@@ -599,8 +590,23 @@ class Proxy(object):
             self.server.queue(self.request.build(
                 del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
                 add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
-            )) 
-
+            ))
+        return host, port
+    
+    def _negotiate_socks5(self, host, port):
+        self.server = Socks5Server(*self.sock5_addr)
+        try:
+            logger.debug('connecting to server %s:%s' % (host, port))
+            self.server.connect(host, port)
+            logger.debug('connected to server %s:%s' % (host, port))
+        except Exception as e:  # TimeoutError, socket.gaierror
+            self.server.closed = True
+            raise ProxyConnectionFailed(host, port, repr(e)) 
+    
+    def _negotiate(self):
+        host, port = self._negotiate_http()
+        self._negotiate_socks5(host, port)
+        
     def _process(self):
         while True:
             rlist, wlist, xlist = self._get_waitable_lists()
@@ -627,7 +633,7 @@ class Proxy(object):
             return BAD_GATEWAY_RESPONSE_PKT
     ########
     # client send b'CONNECT cn.bing.com:443 HTTP/1.1\r\nHost: cn.bing.com:443\r\nProxy-Connection: keep-alive\r\n\r\n'
-    # server send b'HTTP/1.1 200 Connection established\r\nProxy-agent: proxy.py v0.4\r\n\r\n'
+    # server send b'HTTP/1.1 200 Connection established\r\nProxy-agent: ssrforward v0.4\r\n\r\n'
     ########
     def run(self):
         logger.debug('Proxying connection %r' % self.client.conn)
@@ -660,8 +666,8 @@ class TCP(object):
         self.port = port
         self.backlog = backlog
         self.socket = None
-        self.executor = ThreadPoolExecutor(max_workers=20)
-        
+        self.executor = ThreadPoolExecutor(max_workers=50)
+
     def handle(self, client):
         raise NotImplementedError()
 
@@ -745,15 +751,15 @@ def main():
                                                                       'increased RAM.')
     parser.add_argument('--open-file-limit', default='1024', help='Default: 1024. '
                                                                   'Maximum number of files (TCP connections) '
-                                                                  'that proxy.py can open concurrently.')
-    parser.add_argument('--log-level', default='INFO', help='DEBUG, INFO (default), WARNING, ERROR, CRITICAL')
+                                                                  'that ssrforward can open concurrently.')
+    parser.add_argument('--log-level', default='WARNING', help='DEBUG, INFO (default), WARNING, ERROR, CRITICAL')
     parser.add_argument('--pac-file', default='', help='A file (Proxy Auto Configuration) or string to serve when '
                                                        'the server receives a direct file request.')
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log_level),
                         format='%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s')
-
+    logger.warning('Start http proxy 127.0.0.1:%s' % (args.port))
     try:
         set_open_file_limit(int(args.open_file_limit))
 
