@@ -384,22 +384,24 @@ class Socks5Server(Connection):
         if self.conn:
             self.close()
 
+    # TODO: dns resolve ip address
     def connect(self, host, port):
         self.conn = socket.create_connection((self.addr[0], self.addr[1]))
-        self.send(b'\x05\x01\x00')
-        response = self.recv()
-        if (response != b'\x05\x00'):
-            raise Exception('Fail to connect to sock5 server')
+        self.send(pack('3B', 5, 1, 0))
+        response = self.recv(2)
+        if response[0] == 0x05 and response[1] == 0xFF:
+            raise Exception('Auth is required')
+        elif response[0] != 0x05 or response[1] != 0x00:
+            raise Exception('Fail to connect to sock5 server, invalid data')
         self.remote_addr = (host, port)
         #TODO: ATYP x03
         host_len = pack('!H', len(host))
         if (host_len[0] == 0):
             host_len = host_len.decode()[1].encode()
         port = int(port.decode()) if type(port) == bytes else port
-        msg = host_len + host + pack('!H', port)
-        msg = b'\x05\x01\x00\x03' + msg
+        msg = pack('4B', 5, 1, 0, 3) + host_len + host + pack('!H', port)
         self.send(msg)
-        response = self.recv()
+        response = self.recv(10)
         if (response[0:4] != b'\x05\x00\x00\x01'):
             raise Exception('Fail to connect to sock5 server')
 
