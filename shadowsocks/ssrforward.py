@@ -26,7 +26,7 @@ binary_type = bytes
 version=b'1'
 from urllib import parse as urlparse
 
-from shadowsocks import eventloop
+from shadowsocks import eventloop, shell
 STAGE_INIT = 0
 STAGE_NEGOTIATE = 1
 STAGE_STREAM = 2
@@ -678,10 +678,13 @@ class TCPRelayHandler(object):
         self._local_sock_fd = None
         self._remote_sock_fd = None
 
+        self._client_address = local_sock.getpeername()[:2]
+
         self._is_local = is_local
         self._recv_buffer_size = 8192
         self._update_activity()
         self._server.add_connection(1)
+        self._add_ref = 1
         # self._server.stat_add(self._client_address[0], 1)
         local_sock.setblocking(False)
         local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
@@ -698,6 +701,65 @@ class TCPRelayHandler(object):
     def stage(self):
         return self._stage
 
+    def handle_event(self, sock, fd, event):
+        handle = False
+        if self._stage == STAGE_DESTROYED:
+            logger.debug('ignore handle_event: destroyed')
+        if fd == self._remote_sock_fd:
+            pass
+        elif fd == self._local_sock_fd:
+            if event & eventloop.POLL_ERR:
+                handle = True
+                self._on_local_error()
+            elif event & (eventloop.POLL_IN | eventloop.POLL_HUP):
+                handle = True
+                self._on_local_read()
+            elif event & eventloop.POLL_OUT:
+                handle = True
+                self._on_local_write()
+        else:
+            logger.warn('unknown socket from %s:%d' % (self._client_address[0], self._client_address[1]))
+            try:
+                self._loop.removefd(fd)
+            except Exception as e:
+                shell.print_exception(e)
+            try:
+                del self._fd_to_handlers[fd]
+            except Exception as e:
+                shell.print_exception(e)
+            sock.close()
+        return handle
+
+    def _on_local_error(self):
+        if self._local_sock:
+            err = eventloop.get_sock_error(self._local_sock)
+            if err.errno not in [errno.ECONNRESET, errno.EPIPE]:
+                logging.error(err)
+                logging.error("local error, exception from %s:%d" % (self._client_address[0], self._client_address[1]))
+        self.destroy()
+
+    def destroy(self):
+        if self._stage == STAGE_DESTROYED:
+            # this couldn't happen
+            logging.debug('already destroyed')
+            return
+        self._stage = STAGE_DESTROYED
+        if self._local_sock:
+            logging.debug('destroying local')
+            try:
+                self._loop.removefd(self._local_sock_fd)
+            except Exception as e:
+                shell.print_exception(e)
+            try:
+                if self._local_sock_fd is not None:
+                    del self._fd_to_handlers[self._local_sock_fd]
+            except Exception as e:
+                shell.print_exception(e)
+            self._local_sock.close()
+            self._local_sock = None
+        if self._add_ref > 0:
+            self._server.add_connection(-1)
+            # self._server.stat_add(self._client_address[0], -1)
 
 class TCPRelay(object):
     """TCP server implementation.
@@ -836,6 +898,29 @@ class HTTP(TCPRelay):
                     traceback.print_exc()
                     if handler:
                         handler.destroy()
+        else:
+            # dispatch to TCPRelayHandler.handle_event
+            if sock:
+                handler = self._fd_to_handlers.get(fd, None)
+                if handler:
+                    handle = handler.handle_event(sock, fd, event)
+                else:
+                    logging.warn('unknown fd')
+                    handle = True
+                    try:
+                        self._eventloop.removefd(fd)
+                    except Exception as e:
+                        traceback.print_exc()
+                    sock.close()
+            else:
+                logging.warn('poll removed fd')
+                handle = True
+                if fd in self._fd_to_handlers:
+                    try:
+                        del self._fd_to_handlers[fd]
+                    except Exception as e:
+                        traceback.print_exc()
+        return handle
 
     def close(self, next_tick=False):
         logging.debug('TCP close')
