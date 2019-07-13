@@ -12,7 +12,8 @@ import datetime
 import threading
 from collections import namedtuple
 from struct import pack, unpack
-from concurrent.futures import ThreadPoolExecutor
+import traceback
+import signal
 
 if os.name != 'nt':
     import resource
@@ -25,6 +26,11 @@ binary_type = bytes
 version=b'1'
 from urllib import parse as urlparse
 
+from shadowsocks import eventloop
+STAGE_INIT = 0
+STAGE_NEGOTIATE = 1
+STAGE_STREAM = 2
+STAGE_DESTROYED = -1
 
 def text_(s, encoding='utf-8', errors='strict'):    # pragma: no cover
     """Utility to ensure text-like usability.
@@ -431,7 +437,6 @@ class ProxyConnectionFailed(ProxyError):
 class ProxyAuthenticationFailed(ProxyError):
     pass
 
-
 class Proxy(object):
     """HTTP proxy implementation.
 
@@ -456,6 +461,8 @@ class Proxy(object):
         self.sock5_addr = ('127.0.0.1', 8088)
 
         self.pac_file = pac_file
+
+        self._stage = STAGE_INIT
 
     @staticmethod
     def _now():
@@ -567,7 +574,7 @@ class Proxy(object):
             self.client.queue(self.pac_file)
 
         self.client.flush()
-    
+
     def _negotiate_http(self):
         data = self.client.recv(self.client_recvbuf_size)
         if not data:
@@ -580,9 +587,9 @@ class Proxy(object):
             elif self.request.url:
                 host, port = self.request.url.hostname, self.request.url.port if self.request.url.port else 80
             else:
-                raise Exception('Invalid request\n%s' % request.raw)
+                raise Exception('Invalid request\n%s' % self.request.raw)
         return host, port
-    
+
     def _negotiate_socks5(self, host, port):
         self.server = Socks5Server(*self.sock5_addr)
         try:
@@ -592,7 +599,7 @@ class Proxy(object):
         except Exception as e:  # TimeoutError, socket.gaierror
             self.server.closed = True
             raise ProxyConnectionFailed(host, port, repr(e)) 
-    
+
     def _negotiate(self):
         host, port = self._negotiate_http()
         self._negotiate_socks5(host, port)
@@ -608,7 +615,7 @@ class Proxy(object):
                 del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
                 add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
             ))
-        
+
     def _process(self):
         while True:
             rlist, wlist, xlist = self._get_waitable_lists()
@@ -626,7 +633,7 @@ class Proxy(object):
                 if self._is_inactive():
                     logger.debug('client buffer is empty and maximum inactivity has reached, breaking')
                     break
-            
+
             if self._is_inactive(60):
                 logger.warning('timeout reached, breaking')
                 break
@@ -660,8 +667,39 @@ class Proxy(object):
             self._access_log()
             logger.debug('Closing proxy for connection %r at address %r' % (self.client.conn, self.client.addr))
 
+class TCPRelayHandler(object):
 
-class TCP(object):
+    def __init__(self, server, fd_to_handlers, loop, local_sock, is_local):
+        self._server = server
+        self._fd_to_handlers = fd_to_handlers
+        self._loop = loop
+        self._local_sock = local_sock
+        self._remote_sock = None
+        self._local_sock_fd = None
+        self._remote_sock_fd = None
+
+        self._is_local = is_local
+        self._recv_buffer_size = 8192
+        self._update_activity()
+        self._server.add_connection(1)
+        # self._server.stat_add(self._client_address[0], 1)
+        local_sock.setblocking(False)
+        local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        self._local_sock_fd = local_sock.fileno()
+        fd_to_handlers[self._local_sock_fd] = self
+        loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR, self._server)
+        self._stage = STAGE_INIT
+
+    def _update_activity(self, data_len=0):
+        # tell the TCP Relay we have activities recently
+        # else it will think we are inactive and timed out
+        self._server.update_activity(self, data_len)
+
+    def stage(self):
+        return self._stage
+
+
+class TCPRelay(object):
     """TCP server implementation.
 
     Subclass MUST implement `handle` method. It accepts an instance of accepted `Client` connection.
@@ -672,7 +710,12 @@ class TCP(object):
         self.port = port
         self.backlog = backlog
         self.socket = None
-        self.executor = ThreadPoolExecutor(max_workers=50)
+        self._eventloop = None
+        self._closed = False
+        self._server_socket = None
+        self._server_socket_fd = None
+        self._fd_to_handlers = {}
+        self.server_connections = 0
 
     def handle(self, client):
         raise NotImplementedError()
@@ -695,22 +738,69 @@ class TCP(object):
         finally:
             logger.info('Closing server socket')
             self.socket.close()
-            self.executor.shutdown(wait=False)
+            # self.executor.shutdown(wait=False)
 
+    def add_to_loop(self, loop):
+        if self._eventloop:
+            raise Exception('already add to loop')
+        if self._closed:
+            raise Exception('already closed')
+        self._eventloop = loop
+        self._eventloop.add(self._server_socket,
+                            eventloop.POLL_IN | eventloop.POLL_ERR, self)
+        self._eventloop.add_periodic(self.handle_periodic)
 
-class HTTP(TCP):
+    def handle_event(self, sock, fd, event):
+        raise NotImplementedError()
+
+    def handle_periodic(self):
+        if self._closed:
+            if self._server_socket:
+                self._eventloop.removefd(self._server_socket_fd)
+                self._server_socket.close()
+                self._server_socket = None
+                logging.info('closed TCP port %d', self.port)
+            for handler in list(self._fd_to_handlers.values()):
+                handler.destroy()
+        self._sweep_timeout()
+
+    def _sweep_timeout(self):
+        pass
+
+    def add_connection(self, val):
+        self.server_connections += val
+        logger.debug('server port %5d connections = %d' % (self.port, self.server_connections,))
+
+    def update_activity(self, client, data_len):
+        pass
+
+class HTTP(TCPRelay):
     """HTTP proxy server implementation.
 
     Spawns new process to proxy accepted client connection.
     """
 
-    def __init__(self, hostname='127.0.0.1', port=8899, backlog=100,
+    def __init__(self, hostname='127.0.0.1', port=9050, backlog=100,
                  auth_code=None, server_recvbuf_size=8192, client_recvbuf_size=8192, pac_file=None):
         super(HTTP, self).__init__(hostname, port, backlog)
         self.auth_code = auth_code
         self.client_recvbuf_size = client_recvbuf_size
         self.server_recvbuf_size = server_recvbuf_size
         self.pac_file = pac_file
+        # start http proxy server
+        addrs = socket.getaddrinfo(hostname, port, 0,
+                                   socket.SOCK_STREAM, socket.SOL_TCP)
+        if len(addrs) == 0:
+            raise Exception("can't get addrinfo for %s:%d" %
+                            (hostname, port))
+        af, socktype, proto, canonname, sa = addrs[0]
+        server_socket = socket.socket(af, socktype, proto)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(sa)
+        server_socket.setblocking(False)
+        server_socket.listen(1024)
+        self._server_socket = server_socket
+        self._server_socket_fd = server_socket.fileno()
 
     def handle(self, client):
         proxy = Proxy(client,
@@ -718,9 +808,45 @@ class HTTP(TCP):
                       server_recvbuf_size=self.server_recvbuf_size,
                       client_recvbuf_size=self.client_recvbuf_size,
                       pac_file=self.pac_file)
-        # proxy.daemon = True
+        proxy.daemon = True
         # proxy.start()
-        self.executor.submit(proxy.run)
+        # self.executor.submit(proxy.run)
+
+    def handle_event(self, sock, fd, event):
+        handle = False
+        if sock:
+            logger.info('fd {} {}'.format(fd, eventloop.EVENT_NAMES.get(event, event)))
+        if sock == self._server_socket:
+            if event & eventloop.POLL_ERR:
+                raise Exception('server_socket error')
+            handler = None
+            handle = True
+            try:
+                logging.debug('accept')
+                conn = self._server_socket.accept()
+                handler = TCPRelayHandler(self, self._fd_to_handlers, self._eventloop, conn[0], True)
+                if handler.stage() == STAGE_DESTROYED:
+                    conn[0].close()
+            except (OSError, IOError) as e:
+                error_no = eventloop.errno_from_exception(e)
+                if error_no in (errno.EAGAIN, errno.EINPROGRESS,
+                                errno.EWOULDBLOCK):
+                    return
+                else:
+                    traceback.print_exc()
+                    if handler:
+                        handler.destroy()
+
+    def close(self, next_tick=False):
+        logging.debug('TCP close')
+        self._closed = True
+        if not next_tick:
+            if self._eventloop:
+                self._eventloop.remove_periodic(self.handle_periodic)
+                self._eventloop.removefd(self._server_socket_fd)
+            self._server_socket.close()
+            for handler in list(self._fd_to_handlers.values()):
+                handler.destroy()
 
 
 def set_open_file_limit(soft_limit):
@@ -772,16 +898,27 @@ def main():
         auth_code = None
         if args.basic_auth:
             auth_code = b'Basic %s' % base64.b64encode(bytes_(args.basic_auth))
-        proxy = HTTP(hostname=args.hostname,
+        http_server = HTTP(hostname=args.hostname,
                      port=int(args.port),
                      backlog=int(args.backlog),
                      auth_code=auth_code,
                      server_recvbuf_size=int(args.server_recvbuf_size),
                      client_recvbuf_size=int(args.client_recvbuf_size),
                      pac_file=args.pac_file)
-        proxy.run()
+        def handler(signum, _):
+            logger.warning('received SIGQUIT, doing graceful shutting down..')
+            http_server.close(next_tick=True)
+        signal.signal(getattr(signal, 'SIGQUIT', signal.SIGTERM), handler)
+
+        def int_handler(signum, _):
+            sys.exit(1)
+        signal.signal(signal.SIGINT, int_handler)
+
+        loop = eventloop.EventLoop()
+        http_server.add_to_loop(loop)
+        loop.run()
     except KeyboardInterrupt:
-        pass
+        sys.exit(1)
 
 
 if __name__ == '__main__':
