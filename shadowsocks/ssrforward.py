@@ -32,6 +32,16 @@ STAGE_NEGOTIATE = 1
 STAGE_STREAM = 2
 STAGE_DESTROYED = -1
 
+WAIT_STATUS_INIT = 0
+WAIT_STATUS_READING = 1
+WAIT_STATUS_WRITING = 2
+WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING
+
+STREAM_UP = 0
+STREAM_DOWN = 1
+
+BUF_SIZE = 32 * 1024
+
 def text_(s, encoding='utf-8', errors='strict'):    # pragma: no cover
     """Utility to ensure text-like usability.
 
@@ -680,6 +690,11 @@ class TCPRelayHandler(object):
 
         self._client_address = local_sock.getpeername()[:2]
 
+        self._data_to_write_to_local = []
+        self._data_to_write_to_remote = []
+        self._upstream_status = WAIT_STATUS_READING
+        self._downstream_status = WAIT_STATUS_INIT
+
         self._is_local = is_local
         self._recv_buffer_size = 8192
         self._update_activity()
@@ -730,6 +745,33 @@ class TCPRelayHandler(object):
             sock.close()
         return handle
 
+    def _on_local_read(self):
+        if not self._local_sock:
+            return
+        recv_buffer_size = BUF_SIZE
+        data = None
+        try:
+            data = self._local_sock.recv(recv_buffer_size)
+        except (OSError, IOError) as e:
+            if eventloop.errno_from_exception(e) in \
+                    (errno.ETIMEDOUT, errno.EAGAIN, errno.EWOULDBLOCK):
+                return
+        if not data:
+            self.destroy()
+            return
+        if self._stage == STAGE_INIT:
+            self._stage = STAGE_NEGOTIATE
+
+
+    def _on_local_write(self):
+        # handle local writable event
+        if self._data_to_write_to_local:
+            data = b''.join(self._data_to_write_to_local)
+            self._data_to_write_to_local = []
+            self._write_to_sock(data, self._local_sock)
+        else:
+            self._update_stream(STREAM_DOWN, WAIT_STATUS_READING)
+
     def _on_local_error(self):
         if self._local_sock:
             err = eventloop.get_sock_error(self._local_sock)
@@ -737,6 +779,86 @@ class TCPRelayHandler(object):
                 logging.error(err)
                 logging.error("local error, exception from %s:%d" % (self._client_address[0], self._client_address[1]))
         self.destroy()
+
+    def _update_stream(self, stream, status):
+        # update a stream to a new waiting status
+
+        # check if status is changed
+        # only update if dirty
+        dirty = False
+        if stream == STREAM_DOWN:
+            if self._downstream_status != status:
+                self._downstream_status = status
+                dirty = True
+        elif stream == STREAM_UP:
+            if self._upstream_status != status:
+                self._upstream_status = status
+                dirty = True
+        if dirty:
+            if self._local_sock:
+                event = eventloop.POLL_ERR
+                if self._downstream_status & WAIT_STATUS_WRITING:
+                    event |= eventloop.POLL_OUT
+                if self._upstream_status & WAIT_STATUS_READING:
+                    event |= eventloop.POLL_IN
+                self._loop.modify(self._local_sock, event)
+            if self._remote_sock:
+                event = eventloop.POLL_ERR
+                if self._downstream_status & WAIT_STATUS_READING:
+                    event |= eventloop.POLL_IN
+                if self._upstream_status & WAIT_STATUS_WRITING:
+                    event |= eventloop.POLL_OUT
+                self._loop.modify(self._remote_sock, event)
+                if self._remote_sock_v6:
+                    self._loop.modify(self._remote_sock_v6, event)
+
+    def _write_to_sock(self, data, sock):
+        if not sock:
+            return False
+        uncomplete = False
+        try:
+            if data:
+                l = len(data)
+                s = sock.send(data)
+                if s < l:
+                    data = data[s:]
+                    uncomplete = True
+            else:
+                return
+        except (OSError, IOError) as e:
+            error_no = eventloop.errno_from_exception(e)
+            if error_no in (errno.EAGAIN, errno.EINPROGRESS,
+                            errno.EWOULDBLOCK):
+                uncomplete = True
+            else:
+                #traceback.print_exc()
+                shell.print_exception(e)
+                logging.error("exception from %s:%d" % (self._client_address[0], self._client_address[1]))
+                self.destroy()
+                return False
+        except Exception as e:
+            shell.print_exception(e)
+            logging.error("exception from %s:%d" % (self._client_address[0], self._client_address[1]))
+            self.destroy()
+            return False
+
+        if uncomplete:
+            if sock == self._local_sock:
+                self._data_to_write_to_local.append(data)
+                self._update_stream(STREAM_DOWN, WAIT_STATUS_WRITING)
+            elif sock == self._remote_sock:
+                self._data_to_write_to_remote.append(data)
+                self._update_stream(STREAM_UP, WAIT_STATUS_WRITING)
+            else:
+                logging.error('write_all_to_sock:unknown socket from %s:%d' % (self._client_address[0], self._client_address[1]))
+        else:
+            if sock == self._local_sock:
+                self._update_stream(STREAM_DOWN, WAIT_STATUS_READING)
+            elif sock == self._remote_sock:
+                self._update_stream(STREAM_UP, WAIT_STATUS_READING)
+            else:
+                logging.error('write_all_to_sock:unknown socket from %s:%d' % (self._client_address[0], self._client_address[1]))
+        return True
 
     def destroy(self):
         if self._stage == STAGE_DESTROYED:
