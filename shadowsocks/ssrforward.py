@@ -608,7 +608,7 @@ class Proxy(object):
             logger.debug('connected to server %s:%s' % (host, port))
         except Exception as e:  # TimeoutError, socket.gaierror
             self.server.closed = True
-            raise ProxyConnectionFailed(host, port, repr(e)) 
+            raise ProxyConnectionFailed(host, port, repr(e))
 
     def _negotiate(self):
         host, port = self._negotiate_http()
@@ -689,6 +689,7 @@ class TCPRelayHandler(object):
         self._remote_sock_fd = None
 
         self._client_address = local_sock.getpeername()[:2]
+        self.sock5_addr = ('127.0.0.1', 8088)
 
         self._data_to_write_to_local = []
         self._data_to_write_to_remote = []
@@ -760,8 +761,42 @@ class TCPRelayHandler(object):
             self.destroy()
             return
         if self._stage == STAGE_INIT:
-            self._stage = STAGE_NEGOTIATE
+            self._handle_negotiate(data)
+        if self._stage == STAGE_NEGOTIATE:
+            pass
 
+    def _handle_negotiate(self, data):
+        self._stage = STAGE_NEGOTIATE
+        request = HttpParser(HttpParser.types.REQUEST_PARSER)
+        request.parse(data)
+        if request.state == HttpParser.states.COMPLETE:
+            if request.method == b'CONNECT':
+                host, port = request.url.path.split(COLON)
+            elif request.url:
+                host, port = request.url.hostname, request.url.port if request.url.port else 80
+            else:
+                raise Exception('Invalid request\n%s' % request.raw)
+        # remote server
+        socks5_server = Socks5Server(*self.sock5_addr)
+        try:
+            logger.debug('connecting to server %s:%s' % (host, port))
+            socks5_server.connect(host, port)
+            logger.debug('connected to server %s:%s' % (host, port))
+        except Exception as e:  # TimeoutError, socket.gaierror
+            socks5_server.closed = True
+            raise ProxyConnectionFailed(host, port, repr(e))
+
+        if request.method == b'CONNECT':
+            # connection success then send to client
+            self._write_to_sock(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT, self._local_sock)
+        # for usual http requests, re-build request packet
+        # and queue for the server with appropriate headers
+        else:
+            reply = request.build(
+                del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
+                add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
+            )
+            self._write_to_sock(reply, self._local_sock)
 
     def _on_local_write(self):
         # handle local writable event
@@ -809,8 +844,8 @@ class TCPRelayHandler(object):
                 if self._upstream_status & WAIT_STATUS_WRITING:
                     event |= eventloop.POLL_OUT
                 self._loop.modify(self._remote_sock, event)
-                if self._remote_sock_v6:
-                    self._loop.modify(self._remote_sock_v6, event)
+                # if self._remote_sock_v6:
+                # self._loop.modify(self._remote_sock_v6, event)
 
     def _write_to_sock(self, data, sock):
         if not sock:
