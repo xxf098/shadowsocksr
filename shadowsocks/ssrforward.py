@@ -689,7 +689,7 @@ class TCPRelayHandler(object):
         self._remote_sock_fd = None
 
         self._client_address = local_sock.getpeername()[:2]
-        self.sock5_addr = ('127.0.0.1', 8088)
+        self._remote_address = ('127.0.0.1', 8088)
 
         self._data_to_write_to_local = []
         self._data_to_write_to_remote = []
@@ -722,7 +722,9 @@ class TCPRelayHandler(object):
         if self._stage == STAGE_DESTROYED:
             logger.debug('ignore handle_event: destroyed')
         if fd == self._remote_sock_fd:
-            pass
+            if event & eventloop.POLL_ERR:
+                handle = True
+                self._on_remote_error()
         elif fd == self._local_sock_fd:
             if event & eventloop.POLL_ERR:
                 handle = True
@@ -777,26 +779,37 @@ class TCPRelayHandler(object):
             else:
                 raise Exception('Invalid request\n%s' % request.raw)
         # remote server
-        socks5_server = Socks5Server(*self.sock5_addr)
-        try:
-            logger.debug('connecting to server %s:%s' % (host, port))
-            socks5_server.connect(host, port)
-            logger.debug('connected to server %s:%s' % (host, port))
-        except Exception as e:  # TimeoutError, socket.gaierror
-            socks5_server.closed = True
-            raise ProxyConnectionFailed(host, port, repr(e))
+        socks5_server = self._create_socks5_socket(*self._remote_address)
+        self._coonnect_socks5_socket(host, port)
 
-        if request.method == b'CONNECT':
-            # connection success then send to client
-            self._write_to_sock(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT, self._local_sock)
-        # for usual http requests, re-build request packet
-        # and queue for the server with appropriate headers
-        else:
-            reply = request.build(
-                del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
-                add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
-            )
-            self._write_to_sock(reply, self._local_sock)
+    def _create_socks5_socket(self, ip, port):
+        addrs = socket.getaddrinfo(ip, port, 0, socket.SOCK_STREAM, socket.SOL_TCP)
+        if len(addrs) == 0:
+            raise Exception("getaddrinfo failed for %s:%d" % (ip, port))
+        af, socktype, proto, canonname, sa = addrs[0]
+        remote_sock = socket.socket(af, socktype, proto)
+        self._remote_sock = remote_sock
+        self._remote_sock_fd = remote_sock.fileno()
+        self._fd_to_handlers[self._remote_sock_fd] = self
+        remote_sock.setblocking(False)
+        remote_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        return remote_sock
+
+    def _coonnect_socks5_socket(self, host, port):
+        try:
+            self._remote_sock.connect((host, port))
+        except (OSError, IOError) as e:
+            if eventloop.errno_from_exception(e) in (errno.EINPROGRESS,
+                    errno.EWOULDBLOCK):
+                pass # always goto here
+            else:
+                raise e
+        addr, port = self._remote_sock.getsockname()[:2]
+        self._loop.add(self._remote_sock,
+                eventloop.POLL_ERR | eventloop.POLL_OUT,
+                self._server)
+        self._update_stream(STREAM_UP, WAIT_STATUS_READWRITING)
+        self._update_stream(STREAM_DOWN, WAIT_STATUS_READING)
 
     def _on_local_write(self):
         # handle local writable event
@@ -813,6 +826,17 @@ class TCPRelayHandler(object):
             if err.errno not in [errno.ECONNRESET, errno.EPIPE]:
                 logging.error(err)
                 logging.error("local error, exception from %s:%d" % (self._client_address[0], self._client_address[1]))
+        self.destroy()
+
+    def _on_remote_error(self):
+        if self._remote_sock:
+            err = eventloop.get_sock_error(self._remote_sock)
+            if err.errno not in [errno.ECONNRESET]:
+                logging.error(err)
+                if self._remote_address:
+                    logging.error("remote error, when connect to %s:%d" % (self._remote_address[0], self._remote_address[1]))
+                else:
+                    logging.error("remote error, exception from %s:%d" % (self._client_address[0], self._client_address[1]))
         self.destroy()
 
     def _update_stream(self, stream, status):
