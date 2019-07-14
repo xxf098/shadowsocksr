@@ -725,6 +725,12 @@ class TCPRelayHandler(object):
             if event & eventloop.POLL_ERR:
                 handle = True
                 self._on_remote_error()
+            elif event & (eventloop.POLL_IN | eventloop.POLL_HUP):
+                handle = True
+                self._on_remote_read(sock == self._remote_sock)
+            elif event & eventloop.POLL_OUT:
+                handle = True
+                self._on_remote_write()
         elif fd == self._local_sock_fd:
             if event & eventloop.POLL_ERR:
                 handle = True
@@ -780,7 +786,6 @@ class TCPRelayHandler(object):
                 raise Exception('Invalid request\n%s' % request.raw)
         # remote server
         socks5_server = self._create_socks5_socket(*self._remote_address)
-        self._coonnect_socks5_socket(host, port)
 
     def _create_socks5_socket(self, ip, port):
         addrs = socket.getaddrinfo(ip, port, 0, socket.SOCK_STREAM, socket.SOL_TCP)
@@ -793,11 +798,8 @@ class TCPRelayHandler(object):
         self._fd_to_handlers[self._remote_sock_fd] = self
         remote_sock.setblocking(False)
         remote_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        return remote_sock
-
-    def _coonnect_socks5_socket(self, host, port):
         try:
-            self._remote_sock.connect((host, port))
+            self._remote_sock.connect((ip, port))
         except (OSError, IOError) as e:
             if eventloop.errno_from_exception(e) in (errno.EINPROGRESS,
                     errno.EWOULDBLOCK):
@@ -810,6 +812,21 @@ class TCPRelayHandler(object):
                 self._server)
         self._update_stream(STREAM_UP, WAIT_STATUS_READWRITING)
         self._update_stream(STREAM_DOWN, WAIT_STATUS_READING)
+        return remote_sock
+
+    def _on_remote_read(self, is_remote_sock):
+        data = None
+        try:
+            data = self._remote_sock.recv(self._recv_buffer_size)
+        except (OSError, IOError) as e:
+            if eventloop.errno_from_exception(e) in \
+                    (errno.ETIMEDOUT, errno.EAGAIN, errno.EWOULDBLOCK, 10035): #errno.WSAEWOULDBLOCK
+                return
+        if not data:
+            self.destroy()
+            return
+        # write to self._local_sock
+
 
     def _on_local_write(self):
         # handle local writable event
@@ -827,6 +844,17 @@ class TCPRelayHandler(object):
                 logging.error(err)
                 logging.error("local error, exception from %s:%d" % (self._client_address[0], self._client_address[1]))
         self.destroy()
+
+    def _on_remote_write(self):
+        # handle remote writable event
+        if self._stage == STAGE_NEGOTIATE:
+            pass
+        if self._data_to_write_to_remote:
+            data = b''.join(self._data_to_write_to_remote)
+            self._data_to_write_to_remote = []
+            self._write_to_sock(data, self._remote_sock)
+        else:
+            self._update_stream(STREAM_UP, WAIT_STATUS_READING)
 
     def _on_remote_error(self):
         if self._remote_sock:
