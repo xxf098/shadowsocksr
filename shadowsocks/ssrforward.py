@@ -29,7 +29,9 @@ from urllib import parse as urlparse
 from shadowsocks import eventloop, shell
 STAGE_INIT = 0
 STAGE_NEGOTIATE = 1
-STAGE_STREAM = 2
+STAGE_NEGOTIATE_1 = 2 # socks5 1
+STAGE_NEGOTIATE_2 = 3 # socks5 2
+STAGE_STREAM = 4
 STAGE_DESTROYED = -1
 
 WAIT_STATUS_INIT = 0
@@ -178,6 +180,7 @@ class HttpParser(object):
         self.version = None
 
         self.chunk_parser = None
+        self.remote_address = None
 
     def is_chunked_encoded_response(self):
         return self.type == HttpParser.types.RESPONSE_PARSER and \
@@ -696,6 +699,8 @@ class TCPRelayHandler(object):
         self._upstream_status = WAIT_STATUS_READING
         self._downstream_status = WAIT_STATUS_INIT
 
+        self.request = HttpParser(HttpParser.types.REQUEST_PARSER)
+
         self._is_local = is_local
         self._recv_buffer_size = 8192
         self._update_activity()
@@ -727,7 +732,7 @@ class TCPRelayHandler(object):
                 self._on_remote_error()
             elif event & (eventloop.POLL_IN | eventloop.POLL_HUP):
                 handle = True
-                self._on_remote_read(sock == self._remote_sock)
+                self._on_remote_read()
             elif event & eventloop.POLL_OUT:
                 handle = True
                 self._on_remote_write()
@@ -772,19 +777,22 @@ class TCPRelayHandler(object):
             self._handle_negotiate(data)
         if self._stage == STAGE_NEGOTIATE:
             pass
+        if self._stage == STAGE_STREAM:
+            self._write_to_sock(data, self._remote_sock)
 
     def _handle_negotiate(self, data):
         self._stage = STAGE_NEGOTIATE
-        request = HttpParser(HttpParser.types.REQUEST_PARSER)
-        request.parse(data)
-        if request.state == HttpParser.states.COMPLETE:
-            if request.method == b'CONNECT':
-                host, port = request.url.path.split(COLON)
-            elif request.url:
-                host, port = request.url.hostname, request.url.port if request.url.port else 80
+        # request = HttpParser(HttpParser.types.REQUEST_PARSER)
+        self.request.parse(data)
+        if self.request.state == HttpParser.states.COMPLETE:
+            if self.request.method == b'CONNECT':
+                host, port = self.request.url.path.split(COLON)
+            elif self.request.url:
+                host, port = self.request.url.hostname, self.request.url.port if self.request.url.port else 80
             else:
-                raise Exception('Invalid request\n%s' % request.raw)
-        # remote server
+                raise Exception('Invalid request\n%s' % self.request.raw)
+        self.request.remote_address = (host, port)
+        # socks5 server
         socks5_server = self._create_socks5_socket(*self._remote_address)
 
     def _create_socks5_socket(self, ip, port):
@@ -813,8 +821,51 @@ class TCPRelayHandler(object):
         self._update_stream(STREAM_UP, WAIT_STATUS_READWRITING)
         self._update_stream(STREAM_DOWN, WAIT_STATUS_READING)
         return remote_sock
+    
+    def _negotiate_socks5(self, host, port):
+        if self._stage == STAGE_NEGOTIATE:
+            self._write_to_sock(pack('3B', 5, 1, 0), self._remote_sock)
+            self._stage = STAGE_NEGOTIATE_1
+            return
+        
+        if self._stage == STAGE_NEGOTIATE_1:
+            # self.remote_addr = (host, port)
+            #TODO: ATYP x03
+            host_len = pack('!H', len(host))
+            if (host_len[0] == 0):
+                host_len = host_len.decode()[1].encode()
+            port = int(port.decode()) if type(port) == bytes else port
+            msg = pack('4B', 5, 1, 0, 3) + host_len + host + pack('!H', port)
+            self._write_to_sock(msg, self._remote_sock)
+            self._stage = STAGE_NEGOTIATE_2
+            return
 
-    def _on_remote_read(self, is_remote_sock):
+    def _on_remote_read(self):
+        if self._stage == STAGE_NEGOTIATE_1:
+            response = self._remote_sock.recv(2)
+            if response[0] == 0x05 and response[1] == 0xFF:
+                raise Exception('Auth is required')
+            elif response[0] != 0x05 or response[1] != 0x00:
+                raise Exception('Fail to connect to sock5 server, invalid data')
+            self._negotiate_socks5(*self.request.remote_address)
+            return
+        if self._stage == STAGE_NEGOTIATE_2:
+            response = self._remote_sock.recv(10)
+            if (response[0:4] != b'\x05\x00\x00\x01'):
+                raise Exception('Fail to connect to sock5 server')
+            if self.request.method == b'CONNECT':
+                # connection success then send to client
+                #TODO: handle with loop
+                self._write_to_sock(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT, self._local_sock)
+            else:
+                self._write_to_sock(self.request.build(
+                    del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
+                    add_headers=[(b'Via', b'1.1 ssforward v%s' % version), (b'Connection', b'Close')]
+                ), self._local_sock)
+            self._stage = STAGE_STREAM
+            return
+        if self._stage != STAGE_STREAM:
+            return 
         data = None
         try:
             data = self._remote_sock.recv(self._recv_buffer_size)
@@ -825,8 +876,12 @@ class TCPRelayHandler(object):
         if not data:
             self.destroy()
             return
-        # write to self._local_sock
-
+        try:
+            self._write_to_sock(data, self._local_sock)
+        except Exception as e:
+            shell.print_exception(e)
+            logging.error("exception from %s:%d" % (self._client_address[0], self._client_address[1]))
+            self.destroy()
 
     def _on_local_write(self):
         # handle local writable event
@@ -848,7 +903,8 @@ class TCPRelayHandler(object):
     def _on_remote_write(self):
         # handle remote writable event
         if self._stage == STAGE_NEGOTIATE:
-            pass
+            self._negotiate_socks5(*self.request.remote_address)
+            return
         if self._data_to_write_to_remote:
             data = b''.join(self._data_to_write_to_remote)
             self._data_to_write_to_remote = []
