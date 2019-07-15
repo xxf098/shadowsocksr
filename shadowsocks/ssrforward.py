@@ -26,7 +26,7 @@ binary_type = bytes
 version=b'1'
 from urllib import parse as urlparse
 
-from shadowsocks import eventloop, shell
+from shadowsocks import eventloop, shell, lru_cache
 STAGE_INIT = 0
 STAGE_NEGOTIATE = 1
 STAGE_NEGOTIATE_1 = 2 # socks5 1
@@ -827,7 +827,6 @@ class TCPRelayHandler(object):
             self._write_to_sock(pack('3B', 5, 1, 0), self._remote_sock)
             self._stage = STAGE_NEGOTIATE_1
             return
-        
         if self._stage == STAGE_NEGOTIATE_1:
             # self.remote_addr = (host, port)
             #TODO: ATYP x03
@@ -865,7 +864,7 @@ class TCPRelayHandler(object):
             self._stage = STAGE_STREAM
             return
         if self._stage != STAGE_STREAM:
-            return 
+            return
         data = None
         try:
             data = self._remote_sock.recv(self._recv_buffer_size)
@@ -960,6 +959,7 @@ class TCPRelayHandler(object):
             return False
         uncomplete = False
         try:
+            self._update_activity(len(data))
             if data:
                 l = len(data)
                 s = sock.send(data)
@@ -1044,6 +1044,10 @@ class TCPRelay(object):
         self._fd_to_handlers = {}
         self.server_connections = 0
 
+        self._timeout = 300
+        self._timeout_cache = lru_cache.LRUCache(timeout=self._timeout,
+                                         close_callback=self._close_tcp_client)
+
     def handle(self, client):
         raise NotImplementedError()
 
@@ -1092,14 +1096,22 @@ class TCPRelay(object):
         self._sweep_timeout()
 
     def _sweep_timeout(self):
-        pass
+        self._timeout_cache.sweep()
+
+    def _close_tcp_client(self, client):
+        if client.remote_address:
+            logging.debug('timed out: %s:%d' %
+                         client.remote_address)
+        else:
+            logging.debug('timed out')
+        client.destroy()
 
     def add_connection(self, val):
         self.server_connections += val
         logger.debug('server port %5d connections = %d' % (self.port, self.server_connections,))
 
     def update_activity(self, client, data_len):
-        pass
+        self._timeout_cache[hash(client)] = client
 
 class HTTP(TCPRelay):
     """HTTP proxy server implementation.
