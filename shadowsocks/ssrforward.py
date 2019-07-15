@@ -28,7 +28,7 @@ from urllib import parse as urlparse
 
 from shadowsocks import eventloop, shell, lru_cache
 STAGE_INIT = 0
-STAGE_NEGOTIATE = 1
+STAGE_NEGOTIATE_0 = 1 # http
 STAGE_NEGOTIATE_1 = 2 # socks5 1
 STAGE_NEGOTIATE_2 = 3 # socks5 2
 STAGE_STREAM = 4
@@ -715,8 +715,6 @@ class TCPRelayHandler(object):
         self._stage = STAGE_INIT
 
     def _update_activity(self, data_len=0):
-        # tell the TCP Relay we have activities recently
-        # else it will think we are inactive and timed out
         self._server.update_activity(self, data_len)
 
     def stage(self):
@@ -771,14 +769,13 @@ class TCPRelayHandler(object):
             return
         if self._stage == STAGE_INIT:
             self._handle_negotiate(data)
-        if self._stage == STAGE_NEGOTIATE:
+        if self._stage == STAGE_NEGOTIATE_0:
             pass
         if self._stage == STAGE_STREAM:
             self._write_to_sock(data, self._remote_sock)
 
     def _handle_negotiate(self, data):
-        self._stage = STAGE_NEGOTIATE
-        # request = HttpParser(HttpParser.types.REQUEST_PARSER)
+        self._stage = STAGE_NEGOTIATE_0
         self.request.parse(data)
         if self.request.state == HttpParser.states.COMPLETE:
             if self.request.method == b'CONNECT':
@@ -819,7 +816,7 @@ class TCPRelayHandler(object):
         return remote_sock
     
     def _negotiate_socks5(self, host, port):
-        if self._stage == STAGE_NEGOTIATE:
+        if self._stage == STAGE_NEGOTIATE_0:
             self._write_to_sock(pack('3B', 5, 1, 0), self._remote_sock)
             self._stage = STAGE_NEGOTIATE_1
             return
@@ -848,10 +845,11 @@ class TCPRelayHandler(object):
             response = self._remote_sock.recv(10)
             if (response[0:4] != b'\x05\x00\x00\x01'):
                 raise Exception('Fail to connect to sock5 server')
+                
             if self.request.method == b'CONNECT':
-                # connection success then send to client
-                #TODO: handle with loop
                 self._write_to_sock(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT, self._local_sock)
+            elif self.request.method == b'GET':
+                self._write_to_sock(self.request.raw, self._remote_sock)
             else:
                 self._write_to_sock(self.request.build(
                     del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
@@ -897,7 +895,7 @@ class TCPRelayHandler(object):
 
     def _on_remote_write(self):
         # handle remote writable event
-        if self._stage == STAGE_NEGOTIATE:
+        if self._stage == STAGE_NEGOTIATE_0:
             self._negotiate_socks5(*self.request.remote_address)
             return
         if self._data_to_write_to_remote:
