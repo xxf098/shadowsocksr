@@ -726,25 +726,21 @@ class TCPRelayHandler(object):
         handle = False
         if self._stage == STAGE_DESTROYED:
             logger.debug('ignore handle_event: destroyed')
+        handle = fd in(self._remote_sock_fd, self._local_sock_fd) and \
+                event in (eventloop.POLL_IN, eventloop.POLL_OUT, eventloop.POLL_ERR, eventloop.POLL_HUP)
         if fd == self._remote_sock_fd:
             if event & eventloop.POLL_ERR:
-                handle = True
                 self._on_remote_error()
             elif event & (eventloop.POLL_IN | eventloop.POLL_HUP):
-                handle = True
                 self._on_remote_read()
             elif event & eventloop.POLL_OUT:
-                handle = True
                 self._on_remote_write()
         elif fd == self._local_sock_fd:
             if event & eventloop.POLL_ERR:
-                handle = True
                 self._on_local_error()
             elif event & (eventloop.POLL_IN | eventloop.POLL_HUP):
-                handle = True
                 self._on_local_read()
             elif event & eventloop.POLL_OUT:
-                handle = True
                 self._on_local_write()
         else:
             logger.warn('unknown socket from %s:%d' % (self._client_address[0], self._client_address[1]))
