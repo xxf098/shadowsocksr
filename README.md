@@ -9,6 +9,7 @@ Feature
 * Query DNS on startup
 * Support test multiple ssr configs
 * A command line ssr client ssrpp.py
+* Eventloop based http proxy server by forward to shadowsocks with ssrforward.py
 
 SSR Client
 ------
@@ -31,3 +32,7 @@ Start ssr client
 Add ssr subscription
 
     ./shadowsocks/ssrpp.py --sub https://subscription.ssr.com
+
+Start http proxy by forward to shadowsocks
+
+    python3 ./shadowsocks/ssrforward.py
