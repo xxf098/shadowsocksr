@@ -845,11 +845,14 @@ class TCPRelayHandler(object):
             response = self._remote_sock.recv(10)
             if (response[0:4] != b'\x05\x00\x00\x01'):
                 raise Exception('Fail to connect to sock5 server')
-                
+
             if self.request.method == b'CONNECT':
                 self._write_to_sock(PROXY_TUNNEL_ESTABLISHED_RESPONSE_PKT, self._local_sock)
-            elif self.request.method == b'GET':
+            elif self.request.method in (b'GET', b'PUT', b'DELETE', b'OPTIONS', b'TRACE', b'PATCH'):
                 self._write_to_sock(self.request.raw, self._remote_sock)
+            elif self.request.method == b'POST':
+                raw = self.request.raw.replace(b'Proxy-Connection:', b'Connection:')
+                self._write_to_sock(raw, self._remote_sock)
             else:
                 self._write_to_sock(self.request.build(
                     del_headers=[b'proxy-authorization', b'proxy-connection', b'connection', b'keep-alive'],
@@ -1003,19 +1006,27 @@ class TCPRelayHandler(object):
             logging.debug('already destroyed')
             return
         self._stage = STAGE_DESTROYED
+        if self._remote_sock:
+            logging.debug('destroying remote')
+            try:
+                self._loop.removefd(self._remote_sock_fd)
+                if self._remote_sock_fd is not None:
+                    del self._fd_to_handlers[self._remote_sock_fd]                
+            except Exception as e:
+                shell.print_exception(e)
+            self._remote_sock.close()
+            self._remote_sock = None        
         if self._local_sock:
             logging.debug('destroying local')
             try:
                 self._loop.removefd(self._local_sock_fd)
-            except Exception as e:
-                shell.print_exception(e)
-            try:
                 if self._local_sock_fd is not None:
                     del self._fd_to_handlers[self._local_sock_fd]
             except Exception as e:
                 shell.print_exception(e)
             self._local_sock.close()
             self._local_sock = None
+        self._server.remove_handler(self)
         if self._add_ref > 0:
             self._server.add_connection(-1)
             # self._server.stat_add(self._client_address[0], -1)
@@ -1106,6 +1117,10 @@ class TCPRelay(object):
 
     def update_activity(self, client, data_len):
         self._timeout_cache[hash(client)] = client
+    
+    def remove_handler(self, client):
+        if hash(client) in self._timeout_cache:
+            del self._timeout_cache[hash(client)]
 
 class HTTP(TCPRelay):
     """HTTP proxy server implementation.
@@ -1276,6 +1291,7 @@ def main():
     except KeyboardInterrupt:
         sys.exit(1)
 
-
+# TODO: https
+# TODO: POST problems data too big python uvloop
 if __name__ == '__main__':
     main()
