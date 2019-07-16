@@ -253,12 +253,7 @@ class EventLoop(object):
     def poll(self, timeout=None):
         events = self._impl.poll(timeout)
         return [(self._fdmap[fd][0], fd, event) for fd, event in events]
-    
-    # f is scok
-    # handler is tcpreplay
-    # handler is DNSResolver
-    # pullout send
-    # pullin  recv
+
     def add(self, f, mode, handler):
         fd = f.fileno()
         # print(f"Add: id:{id(handler)}, class:{handler.__class__.__name__},sock:{f}, fd:{fd}, mode:{mode}")
@@ -271,7 +266,8 @@ class EventLoop(object):
         self._impl.unregister(fd)
 
     def removefd(self, fd):
-        del self._fdmap[fd]
+        if fd in self._fdmap:
+            del self._fdmap[fd]
         self._impl.unregister(fd)
 
     def add_periodic(self, callback):
@@ -306,7 +302,9 @@ class EventLoop(object):
                 import traceback
                 traceback.print_exc()
                 return
-        tasks = [asyncio.coroutine(self._fdmap.get(fd)[1].handle_event)(sock, fd, event) for sock, fd, event in events if self._fdmap.get(fd, None) is not None ]
+        tasks = [asyncio.coroutine(self._fdmap.get(fd)[1].handle_event)(sock, fd, event) \
+            for sock, fd, event in events \
+            if self._fdmap.get(fd, None) is not None]
         try:
             results = await asyncio.gather(*tasks)
         except (OSError, IOError) as e:
