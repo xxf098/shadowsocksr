@@ -456,7 +456,7 @@ class Proxy(object):
     Accepts `Client` connection object and act as a proxy between client and server.
     """
 
-    def __init__(self, client, auth_code=None, server_recvbuf_size=8192, client_recvbuf_size=8192, pac_file = None):
+    def __init__(self, client, auth_code=None, server_recvbuf_size=8192, client_recvbuf_size=8192, pac_file = None, ssr_port=None):
         super(Proxy, self).__init__()
 
         self.start_time = self._now()
@@ -471,7 +471,7 @@ class Proxy(object):
         self.request = HttpParser(HttpParser.types.REQUEST_PARSER)
         self.response = HttpParser(HttpParser.types.RESPONSE_PARSER)
 
-        self.sock5_addr = ('127.0.0.1', 8088)
+        self.sock5_addr = ('127.0.0.1', ssr_port)
 
         self.pac_file = pac_file
 
@@ -682,7 +682,7 @@ class Proxy(object):
 
 class TCPRelayHandler(object):
 
-    def __init__(self, server, fd_to_handlers, loop, local_sock, is_local):
+    def __init__(self, server, fd_to_handlers, loop, local_sock, is_local, ssr_port):
         self._server = server
         self._fd_to_handlers = fd_to_handlers
         self._loop = loop
@@ -692,7 +692,7 @@ class TCPRelayHandler(object):
         self._remote_sock_fd = None
 
         self._client_address = local_sock.getpeername()[:2]
-        self._remote_address = ('127.0.0.1', 8088)
+        self._remote_address = ('127.0.0.1', ssr_port)
 
         self._data_to_write_to_local = []
         self._data_to_write_to_remote = []
@@ -1128,13 +1128,14 @@ class HTTP(TCPRelay):
     Spawns new process to proxy accepted client connection.
     """
 
-    def __init__(self, hostname='127.0.0.1', port=9050, backlog=100,
+    def __init__(self, hostname='127.0.0.1', port=9050, ssr_port=8088, backlog=100,
                  auth_code=None, server_recvbuf_size=8192, client_recvbuf_size=8192, pac_file=None):
         super(HTTP, self).__init__(hostname, port, backlog)
         self.auth_code = auth_code
         self.client_recvbuf_size = client_recvbuf_size
         self.server_recvbuf_size = server_recvbuf_size
         self.pac_file = pac_file
+        self.ssr_port = ssr_port
         # start http proxy server
         addrs = socket.getaddrinfo(hostname, port, 0,
                                    socket.SOCK_STREAM, socket.SOL_TCP)
@@ -1155,7 +1156,8 @@ class HTTP(TCPRelay):
                       auth_code=self.auth_code,
                       server_recvbuf_size=self.server_recvbuf_size,
                       client_recvbuf_size=self.client_recvbuf_size,
-                      pac_file=self.pac_file)
+                      pac_file=self.pac_file,
+                      ssr_port=self.ssr_port)
         proxy.daemon = True
         # proxy.start()
         # self.executor.submit(proxy.run)
@@ -1172,7 +1174,7 @@ class HTTP(TCPRelay):
             try:
                 logging.debug('accept')
                 conn = self._server_socket.accept()
-                handler = TCPRelayHandler(self, self._fd_to_handlers, self._eventloop, conn[0], True)
+                handler = TCPRelayHandler(self, self._fd_to_handlers, self._eventloop, conn[0], True, self.ssr_port)
                 if handler.stage() == STAGE_DESTROYED:
                     conn[0].close()
             except (OSError, IOError) as e:
@@ -1236,7 +1238,8 @@ def main():
     )
 
     parser.add_argument('--hostname', default='127.0.0.1', help='Default: 127.0.0.1')
-    parser.add_argument('--port', default='9050', help='Default: 8899')
+    parser.add_argument('--port', default='9050', help='Default: 9050')
+    parser.add_argument('--ssr-port', default='8088', help='Default: 8088')
     parser.add_argument('--backlog', default='100', help='Default: 100. '
                                                          'Maximum number of pending connections to proxy server')
     parser.add_argument('--basic-auth', default=None, help='Default: No authentication. '
@@ -1271,6 +1274,7 @@ def main():
             auth_code = b'Basic %s' % base64.b64encode(bytes_(args.basic_auth))
         http_server = HTTP(hostname=args.hostname,
                      port=int(args.port),
+                     ssr_port=int(args.ssr_port),
                      backlog=int(args.backlog),
                      auth_code=auth_code,
                      server_recvbuf_size=int(args.server_recvbuf_size),
@@ -1292,6 +1296,7 @@ def main():
         sys.exit(1)
 
 # TODO: https
-# TODO: POST problems data too big python uvloop
+# TODO: _remote_sock_v6  python uvloop
+# TODO: check self.destroy()
 if __name__ == '__main__':
     main()
