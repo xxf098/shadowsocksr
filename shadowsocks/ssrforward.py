@@ -720,6 +720,10 @@ class TCPRelayHandler(object):
     def stage(self):
         return self._stage
 
+    @property
+    def remote_address(self):
+        return self._remote_address
+
     def handle_event(self, sock, fd, event):
         handle = False
         if self._stage == STAGE_DESTROYED:
