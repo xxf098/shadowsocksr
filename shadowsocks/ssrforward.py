@@ -916,7 +916,7 @@ class TCPRelayHandler(object):
         if self._remote_sock:
             err = eventloop.get_sock_error(self._remote_sock)
             if err.errno not in [errno.ECONNRESET]:
-                logging.error(err)
+                # logging.error(err)
                 if self._remote_address:
                     logging.error("remote error, when connect to %s:%d" % (self._remote_address[0], self._remote_address[1]))
                 else:
@@ -1267,9 +1267,9 @@ def main():
                                                        'the server receives a direct file request.')
     args = parser.parse_args()
 
+    print(f'Start http proxy 127.0.0.1:{args.port} by forward to 127.0.0.1:{args.ssr_port}')
     logging.basicConfig(level=getattr(logging, args.log_level),
                         format='%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s')
-    logger.warning('Start http proxy 127.0.0.1:%s' % (args.port))
     try:
         set_open_file_limit(int(args.open_file_limit))
 
