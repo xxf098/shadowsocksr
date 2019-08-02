@@ -461,6 +461,32 @@ class RightPanelDispaly(SinglePanelDispaly):
             line = line[0:max_len-ch_count]
             self.screen.addnstr(i, self.padding, line, max_len, style)
 
+class StatusBar:
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.parent_screen = self.parent.screen
+        self.screen = self.parent_screen.derwin(0,0,0,0)
+        self.height, self.width, self.x, self.y = 0, 0, 0, 0
+        self.padding = 1
+
+    def resize(self, start_y, start_x, height, width):
+        self.screen.resize(height, width)
+        parent_y, parent_x = self.screen.getparyx()
+        if start_y != parent_y or start_x != parent_y:
+            self.screen.mvderwin(start_y, start_x)
+        self.height, self.width = height, width
+        self.y, self.x = (start_y, start_x)
+
+    def draw(self):
+        y, x = self.screen.getmaxyx()
+        if y != self.y or x != self.x:
+            self.screen.mvwin(self.y, self.x)
+        max_len = self.width - self.padding
+        self.screen.erase()
+        self.screen.addnstr(0, self.padding, BASE_DIR, max_len)
+        self.screen.refresh()
+
 #TODO: signal publish sub
 class MultiPanelDisplay:
 
@@ -471,6 +497,7 @@ class MultiPanelDisplay:
         self.screen = screen
         self.height, self.width = self.screen.getmaxyx()
         self.panels = []
+        self.statusbar = None
         self.ssr_dir = DEFAULT_SSR_DIR
         self._setup_curses()
         self._setup_color()
@@ -494,20 +521,23 @@ class MultiPanelDisplay:
         middle.focused = True
         right = RightPanelDispaly(self, 2, left_panel=middle)
         self.panels.extend([left, middle, right])
+        self.statusbar = StatusBar(self)
         self.resize()
 
     def resize(self):
-        top, left = 0, 0
+        top, left = 1, 0
         for i, ratio in enumerate(self.ratios):
             width = int(self.width * ratio)
-            self.panels[i].resize(top, left, self.height, width)
+            self.panels[i].resize(top, left, self.height-1, width)
             left += width
+        self.statusbar.resize(0, 0, 1, self.width)
 
     def draw(self):
         self.screen.clear()
         k = None
         while not self.stop:
             # self.screen.erase()
+            self.statusbar.draw()
             for panel in self.panels:
                 panel.draw()
             self.handle_key()
@@ -724,7 +754,9 @@ async def get_ssrname(ssr):
 
 def select_ssr_names():
     try:
-        screen = curses.initscr()
+        stdscr = curses.initscr()
+        height,width = stdscr.getmaxyx()
+        screen = curses.newwin(height-1, width, 0, 0)
         display = MultiPanelDisplay(screen)
         display.rebuld()
         result = display.draw()
@@ -762,10 +794,8 @@ def match_multiple_links_filename(filename):
     return match
 
 # TODO: confirm handle all key fuzzy search
-# TODO: Display as a pip local module
-# TODO: Update every 1s range
 # TODO: count call_back delete event driven
-# TODO: three panel git http_proxy power request add index sort options file info setting
-# TODO: kill process
+# TODO: three panel git http_proxy power request add index sort options file info
+# TODO: kill current process
 if __name__ == '__main__':
     main()
