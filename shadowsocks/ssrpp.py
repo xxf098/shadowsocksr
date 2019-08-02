@@ -488,8 +488,10 @@ class StatusBar:
         self.screen.refresh()
 
     def get_status(self):
-        parent_status = self.parent.get_status()
-        return f'{BASE_DIR}\t{parent_status}'
+        (ssr_name, count_status) = self.parent.get_status()
+        if (re.match('.*_\d+_\.', ssr_name)):
+            ssr_name=re.sub('_(\d+)_\.ssr$', 'ssr:\g<1>', ssr_name)
+        return f'{DEFAULT_SSR_DIR}{ssr_name}\t{count_status}'
 
 #TODO: signal publish sub
 class MultiPanelDisplay:
@@ -553,7 +555,8 @@ class MultiPanelDisplay:
             return ''
         left = self.panels[0]
         middle = self.panels[1]
-        return f'{len(left.lines)}:{len(middle.lines)}'
+        ssr_name = middle.lines[middle.highlight_index]
+        return (ssr_name, f'{len(left.lines)}:{len(middle.lines)}')
 
     def handle_key(self):
         # down KEY_DWON up key_UP left KEY_LEFT right KEY_RIGHT
