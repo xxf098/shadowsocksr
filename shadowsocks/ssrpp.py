@@ -484,8 +484,12 @@ class StatusBar:
             self.screen.mvwin(self.y, self.x)
         max_len = self.width - self.padding
         self.screen.erase()
-        self.screen.addnstr(0, self.padding, BASE_DIR, max_len)
+        self.screen.addnstr(0, self.padding, self.get_status(), max_len)
         self.screen.refresh()
+
+    def get_status(self):
+        parent_status = self.parent.get_status()
+        return f'{BASE_DIR}\t{parent_status}'
 
 #TODO: signal publish sub
 class MultiPanelDisplay:
@@ -537,12 +541,19 @@ class MultiPanelDisplay:
         k = None
         while not self.stop:
             # self.screen.erase()
-            self.statusbar.draw()
             for panel in self.panels:
                 panel.draw()
+            self.statusbar.draw()
             self.handle_key()
             self.screen.refresh()
         return self.selected_server
+
+    def get_status(self):
+        if (len(self.panels) != 3):
+            return ''
+        left = self.panels[0]
+        middle = self.panels[1]
+        return f'{len(left.lines)}:{len(middle.lines)}'
 
     def handle_key(self):
         # down KEY_DWON up key_UP left KEY_LEFT right KEY_RIGHT
