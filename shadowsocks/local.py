@@ -34,7 +34,7 @@ from shadowsocks import shell, daemon, eventloop, tcprelay, udprelay, asyncdns
 def main():
     shell.check_python()
 
-    # fix py2exe
+    # fix p@y2exe
     if hasattr(sys, "frozen") and sys.frozen in \
             ("windows_exe", "console_exe"):
         p = os.path.dirname(os.path.abspath(sys.executable))
@@ -46,8 +46,8 @@ def main():
         asyncdns.IPV6_CONNECTION_SUPPORT = False
 
     daemon.daemon_exec(config)
-    logging.info("local start with protocol[%s] password [%s] method [%s] obfs [%s] obfs_param [%s]" %
-            (config['protocol'], config['password'], config['method'], config['obfs'], config['obfs_param']))
+    logging.info("local start with protocol[%s] password [%s] method [%s] obfs [%s] obfs_param [%s] ssr_name [%s]" %
+            (config['protocol'], '', config['method'], config['obfs'], config['obfs_param'], config['ssr_name']))
 
     try:
         logging.info("starting local at %s:%d" %

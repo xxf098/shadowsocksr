@@ -141,9 +141,9 @@ def get_config(is_local):
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)-s: %(message)s')
     if is_local:
-        shortopts = 'hd:s:b:p:k:l:L:m:O:o:G:g:c:t:vq'
+        shortopts = 'hd:s:b:p:k:l:L:m:O:o:G:g:c:t:T:vq'
         longopts = ['help', 'fast-open', 'pid-file=', 'log-file=', 'user=',
-                    'version']
+                    'version', 'ssr-name=']
     else:
         shortopts = 'hd:s:p:k:m:O:o:G:g:c:t:vq'
         longopts = ['help', 'fast-open', 'pid-file=', 'log-file=', 'workers=',
@@ -151,7 +151,7 @@ def get_config(is_local):
     try:
         optlist, args = getopt.getopt(sys.argv[1:], shortopts, longopts)
         for key, value in optlist:
-            if key == '-c':
+            if key == '-c' or key == '-T':
                 config_path = value
             elif key == '-L':
                 config_ssrlink = value
@@ -172,6 +172,7 @@ def get_config(is_local):
             # .ssr load ssr link directly
             with open(config_path, 'rb') as f:
                 try:
+                    # TODO: support multiple lines
                     if re.match(r'.*\.ssr$', config_path, re.I):
                         config = parse_ssrlink_in_str(f.read().decode('utf8'))
                     else:
@@ -216,6 +217,8 @@ def get_config(is_local):
                 config['verbose'] = v_count
             elif key == '-t':
                 config['timeout'] = int(value)
+            elif key == '-T':
+                config['test_connection'] = True
             elif key == '--fast-open':
                 config['fast_open'] = True
             elif key == '--workers':
@@ -229,6 +232,8 @@ def get_config(is_local):
 
             elif key == '-d':
                 config['daemon'] = to_str(value)
+            elif key == '--ssr-name':
+                config['ssr_name'] = to_str(value)
             elif key == '--pid-file':
                 config['pid-file'] = to_str(value)
             elif key == '--log-file':
@@ -267,7 +272,8 @@ def get_config(is_local):
     config['verbose'] = config.get('verbose', False)
     config['connect_verbose_info'] = config.get('connect_verbose_info', 0)
     config['local_address'] = to_str(config.get('local_address', '127.0.0.1'))
-    config['local_port'] = config.get('local_port', 1080)
+    config['local_port'] = config.get('local_port', 8088)
+    config['test_connection'] = config.get('test_connection', False)
     if is_local:
         if config.get('server', None) is None:
             logging.error('server addr not specified')
@@ -466,5 +472,7 @@ def parse_json_in_str(data):
     # parse json and convert everything from unicode to str
     return json.loads(data, object_hook=_decode_dict)
 
+# TODO: load multiple config
+# TODO: subscribe 
 def parse_ssrlink_in_str(data):
     return ssrlink.parseLink(data)

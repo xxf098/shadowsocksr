@@ -801,7 +801,7 @@ def build_cmd(ssr_name, ssr_dir):
                 ssr_link = lines[line_num - 1].rstrip()
                 if re.match(SSR_LINK_REGEX, ssr_link):
                     cmd = f'{cmd} -L {ssr_link}'
-    return cmd
+    return f'{cmd} --ssr-name=\'{ssr_name}\''
 
 def match_multiple_links_filename(filename):
     match = re.match('.*\._(\d+)_\.ssr?$', filename)
