@@ -16,6 +16,7 @@ import traceback
 import asyncio
 from functools import reduce
 import operator
+from datetime import datetime
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -488,11 +489,17 @@ class StatusBar:
         self.screen.addnstr(0, self.padding, self.get_status(), max_len)
         self.screen.refresh()
 
+    # cache
     def get_status(self):
         (ssr_name, count_status) = self.parent.get_status()
+        ssr_path = join(DEFAULT_SSR_DIR, ssr_name)
         if (re.match('.*_\d+_\.', ssr_name)):
+            ssr_path=join(DEFAULT_SSR_DIR, re.sub('_(\d+)_\.ssr$', 'ssr', ssr_name))
             ssr_name=re.sub('_(\d+)_\.ssr$', 'ssr:\g<1>', ssr_name)
-        return f'{DEFAULT_SSR_DIR}{ssr_name}\t{count_status}'
+        ctime = ''
+        if (os.path.isfile(ssr_path)):
+            ctime=datetime.fromtimestamp(os.path.getctime(ssr_path)).strftime('%Y-%m-%d')
+        return f'{DEFAULT_SSR_DIR}{ssr_name}\t{count_status}\t{ctime}'
 
 #TODO: signal publish sub
 class MultiPanelDisplay:
