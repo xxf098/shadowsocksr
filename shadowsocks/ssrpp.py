@@ -435,6 +435,7 @@ class MiddlePanelDispaly(SinglePanelDispaly):
                 curses.setsyx(i, self.x)
                 self.screen.clrtoeol()
             style = 0
+            line = line[0:(self.width-self.padding-1)] if (len(line) > self.width-self.padding-1) else line
             if i == self.highlight_index:
                 style = self.highlight_style_not_focus
                 if self.focused:
