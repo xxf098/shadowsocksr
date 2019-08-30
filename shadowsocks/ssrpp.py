@@ -300,7 +300,8 @@ class SinglePanelDispaly:
             'KEY_UP': self.handle_key_up,
             'KEY_LEFT': self.handle_key_left,
             'KEY_RIGHT': self.handle_key_right,
-            '\x04': self.handle_delete
+            '\x04': self.handle_delete,
+            '\x19': self.handle_copy
         }
         self.highlight_style = Style().attrs_to_style(highlight_style)
         self.highlight_style_not_focus = Style().attrs_to_style(highlight_style_not_focus)
@@ -344,6 +345,9 @@ class SinglePanelDispaly:
         self.parent.change_foucs(1)
 
     def handle_delete(self):
+        pass
+    
+    def handle_copy(self):
         pass
 
     def handle_key(self, key):
@@ -425,6 +429,12 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_cache:
             del ssr_names_cache[ssr_name]
+    
+    def handle_copy(self):
+        ssr_name = self.lines[self.highlight_index]
+        ssr_link = ssr_link_cache[ssr_name]
+        if len(ssr_link) > 0:
+            pass
 
     def _draw_lines(self):
         if not self.focused:
@@ -572,7 +582,7 @@ class MultiPanelDisplay:
         if key == '\r':
             self.stop = True
             self.selected_server = self.panels[1].get_selectd()
-        if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04']:
+        if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04', '\x19']:
             return
         for panel in self.panels:
             panel.handle_key(key)
@@ -617,12 +627,13 @@ def main():
 # TODO: Sort by modify time
 # TODO: JSON Format
 ssr_cache = {}
+ssr_link_cache = {}
 ignore_regex = '.*("password"|"server_port").*'
-def preview_ssr(filename):
+def preview_ssr(filename, is_get_link=False):
     ssr_dir = DEFAULT_SSR_DIR
     origin_filename = filename
     if origin_filename in ssr_cache:
-        return ssr_cache[filename]
+        return ssr_cache[filename] if not is_get_link else ssr_link_cache[filename]
     multiple_match = match_multiple_links_filename(filename)
     filename = re.sub('_\d+_\.', '', filename)
     filepath = f'{ssr_dir}{filename}'
@@ -644,6 +655,7 @@ def preview_ssr(filename):
         output = subprocess.check_output(cmd)
         result.extend([replace_hide_field(x) for x in output.decode('utf-8').split('\n')])
         ssr_cache[origin_filename] = result
+        ssr_link_cache[origin_filename] = ssr_link
         return result
     # print(filepath)
 
@@ -819,5 +831,6 @@ def match_multiple_links_filename(filename):
 # TODO: count call_back delete event driven
 # TODO: three panel git http_proxy power request add index sort options file info
 # TODO: kill current process
+# TODO: copy ssr link
 if __name__ == '__main__':
     main()
