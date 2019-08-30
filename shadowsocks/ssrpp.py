@@ -346,7 +346,7 @@ class SinglePanelDispaly:
 
     def handle_delete(self):
         pass
-    
+
     def handle_copy(self):
         pass
 
@@ -429,12 +429,13 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_cache:
             del ssr_names_cache[ssr_name]
-    
+
     def handle_copy(self):
         ssr_name = self.lines[self.highlight_index]
         ssr_link = ssr_link_cache[ssr_name]
         if len(ssr_link) > 0:
-            pass
+            # TODO: update status
+            os.system(f'echo {ssr_link} | xsel --clipboard')
 
     def _draw_lines(self):
         if not self.focused:
