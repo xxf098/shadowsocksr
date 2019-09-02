@@ -36,3 +36,12 @@ Add ssr subscription
 Start http proxy by forward to shadowsocks
 
     python3 ./shadowsocks/ssrforward.py
+
+Shortcuts
+------
+
+* Delete a item: Ctrl-d
+
+* Copy SSR link: Ctrl-y
+
+* Exit program: Ctrl-c
