@@ -725,10 +725,14 @@ def add_subscription_from_file(src_file, new_filename):
     write_ssr_data_to_file(data, filename)
 
 def add_subscription_from_url(url):
-    data = request_url(url)
-    filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
-    write_ssr_data_to_file(data, filename)
-    write_subscribe_url(url, filename)
+    try:
+        data = request_url(url)
+        filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
+        write_ssr_data_to_file(data, filename)
+        write_subscribe_url(url, filename)
+    except:
+        pass
+    return url
 
 def write_ssr_data_to_file(data, filename):
     if not data.endswith('=='):
@@ -757,6 +761,7 @@ def update_subscription(update_type):
     ssr_files = get_path_by_time(DEFAULT_SSR_DIR)
     urls = get_subscribe_urls(ssr_files)
     urls = [u for url in urls if len(url) > 0 for u in url ]
+    request_urls(urls)
 
 def get_subscribe_urls(filepaths):
     with ThreadPoolExecutor(max_workers = 4) as executor:
@@ -767,6 +772,13 @@ def get_subscribe_url(filepath):
     with open(filepath, 'r') as f:
         lines = f.readlines()
         return [x for x in lines if re.match(url_pattern, x)]
+
+def request_urls(urls):
+    if len(urls) == 0:
+        return
+    with ThreadPoolExecutor(max_workers = 4) as executor:
+      results = executor.map(add_subscription_from_url, urls)
+    return results
 
 #TODO: more sort method
 def get_path_by_time(dir):
