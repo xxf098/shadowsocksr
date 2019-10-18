@@ -604,20 +604,27 @@ class MultiPanelDisplay:
             self.panels[1].focused = False
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dir', nargs='?', default=DEFAULT_SSR_DIR)
-    parser.add_argument('-p', '--preview')
-    parser.add_argument('-s', '--sub')
-    parser.add_argument('--update', default='all')
-    parser.add_argument('--name', default=None)
-    args = parser.parse_args()
-    if args.preview:
-        return preview_ssr(args.preview)
-    if args.sub:
-        return add_subscription(sys.argv[2], args.name)
-    if args.update:
-        update_type = args.update
-        return update_subscription(update_type)
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('dir', nargs='?', default=DEFAULT_SSR_DIR)
+        parser.add_argument('-p', '--preview')
+        parser.add_argument('-s', '--sub')
+        parser.add_argument('--update', default='all')
+        parser.add_argument('--check', help='check port open')
+        parser.add_argument('--name', default=None)
+        args = parser.parse_args()
+        if args.preview:
+            return preview_ssr(args.preview)
+        if args.sub:
+            return add_subscription(sys.argv[2], args.name)
+        if args.update:
+            update_type = args.update
+            return update_subscription(update_type)
+        if args.check:
+            return check_connection()
+    except KeyboardInterrupt:
+        print('Operation Cancelled\n')
+        return 0
     ssr_dir = args.dir
     if not os.path.isdir(ssr_dir):
         raise Exception('Path is not a directory')
@@ -755,7 +762,6 @@ def request_url(url):
     data = r.read().decode(r.info().get_param('charset') or 'utf-8')
     return data
 
-# update all
 # update by number
 def update_subscription(update_type):
     ssr_files = get_path_by_time(DEFAULT_SSR_DIR)
@@ -779,6 +785,9 @@ def request_urls(urls):
     with ThreadPoolExecutor(max_workers = 4) as executor:
       results = executor.map(add_subscription_from_url, urls)
     return results
+
+def check_connection():
+    pass
 
 #TODO: more sort method
 def get_path_by_time(dir):
