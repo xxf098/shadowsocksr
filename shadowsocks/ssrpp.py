@@ -606,12 +606,16 @@ def main():
     parser.add_argument('dir', nargs='?', default=DEFAULT_SSR_DIR)
     parser.add_argument('-p', '--preview')
     parser.add_argument('-s', '--sub')
+    parser.add_argument('--update', default='all')
     parser.add_argument('--name', default=None)
     args = parser.parse_args()
     if args.preview:
         return preview_ssr(args.preview)
     if args.sub:
         return add_subscription(sys.argv[2], args.name)
+    if args.update:
+        update_type = args.update
+        return update_subscription(update_type)
     ssr_dir = args.dir
     if not os.path.isdir(ssr_dir):
         raise Exception('Path is not a directory')
@@ -744,6 +748,11 @@ def request_url(url):
     r = urlopen(req)
     data = r.read().decode(r.info().get_param('charset') or 'utf-8')
     return data
+
+# update all
+# update by number
+def update_subscription(update_type):
+    print(update_type)
 
 #TODO: more sort method
 def get_path_by_time(dir):
