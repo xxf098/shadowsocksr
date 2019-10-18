@@ -301,7 +301,7 @@ class SinglePanelDispaly:
             'KEY_LEFT': self.handle_key_left,
             'KEY_RIGHT': self.handle_key_right,
             '\x04': self.handle_delete,
-            '\x19': self.handle_copy
+            '\x19': self.handle_copy # Ctrl - y
         }
         self.highlight_style = Style().attrs_to_style(highlight_style)
         self.highlight_style_not_focus = Style().attrs_to_style(highlight_style_not_focus)
@@ -720,15 +720,20 @@ def add_subscription_from_file(src_file, new_filename):
 
 def add_subscription_from_url(url):
     data = request_url(url)
-    write_ssr_data_to_file(data, f"{urlsplit(url).netloc}.ssr")
+    filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
+    write_ssr_data_to_file(data, filename)
+    write_subscribe_url(url, filename)
 
 def write_ssr_data_to_file(data, filename):
     if not data.endswith('=='):
         data = data + '=='
     decode_data = base64.b64decode(data)
-    filename = f'{DEFAULT_SSR_DIR}{filename}'
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(decode_data.decode('utf-8'))
+
+def write_subscribe_url(url, filename):
+    with open(filename, 'a', encoding='utf-8') as f:
+        f.write(url)
 
 def request_url(url):
     if not re.match(url_pattern, url):
@@ -832,6 +837,5 @@ def match_multiple_links_filename(filename):
 # TODO: count call_back delete event driven
 # TODO: three panel git http_proxy power request add index sort options file info
 # TODO: kill current process
-# TODO: copy ssr link
 if __name__ == '__main__':
     main()
