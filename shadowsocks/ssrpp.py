@@ -17,6 +17,8 @@ import asyncio
 from functools import reduce
 import operator
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -752,7 +754,19 @@ def request_url(url):
 # update all
 # update by number
 def update_subscription(update_type):
-    print(update_type)
+    ssr_files = get_path_by_time(DEFAULT_SSR_DIR)
+    urls = get_subscribe_urls(ssr_files)
+    urls = [u for url in urls if len(url) > 0 for u in url ]
+
+def get_subscribe_urls(filepaths):
+    with ThreadPoolExecutor(max_workers = 4) as executor:
+      results = executor.map(get_subscribe_url, filepaths)
+    return results
+
+def get_subscribe_url(filepath):
+    with open(filepath, 'r') as f:
+        lines = f.readlines()
+        return [x for x in lines if re.match(url_pattern, x)]
 
 #TODO: more sort method
 def get_path_by_time(dir):
