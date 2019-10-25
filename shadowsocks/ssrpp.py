@@ -19,6 +19,8 @@ import operator
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
+import ssrlink
+import socket
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -609,8 +611,8 @@ def main():
         parser.add_argument('dir', nargs='?', default=DEFAULT_SSR_DIR)
         parser.add_argument('-p', '--preview')
         parser.add_argument('-s', '--sub')
-        parser.add_argument('--update', default='all')
-        parser.add_argument('--check', help='check port open')
+        parser.add_argument('--update', default=None)
+        parser.add_argument('--check', nargs='?', help='check port open')
         parser.add_argument('--name', default=None)
         args = parser.parse_args()
         if args.preview:
@@ -787,7 +789,42 @@ def request_urls(urls):
     return results
 
 def check_connection():
-    pass
+    ssr_files = get_path_by_time(DEFAULT_SSR_DIR)
+    ssr_files = [x for x in ssr_files if re.match('.*\.ssr$', x)]
+    with ThreadPoolExecutor(max_workers = 4) as executor:
+      results = executor.map(read_all_links, ssr_files)
+    configs = [x for x in results]
+    for config in configs:
+        print(list(config.keys())[0])
+        with ThreadPoolExecutor(max_workers = 4) as executor:
+          results = executor.map(check_port_open, list(config.values())[0])
+        for x in results:
+            print(x)
+    # print(configs)
+
+def read_all_links(ssr_filename):
+    filename = basename(ssr_filename)
+    with open(ssr_filename) as f:
+        lines = f.readlines()
+        return {filename: [ssrlink.parseLink(x) for x in lines if re.match('^ssr://',x)]}
+
+def check_port_open(config):
+    try:
+        server=config['server']
+        server_port=config['server_port']
+        if server == 'www.google.com':
+            return False
+        if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", server):
+            ip_addr=server
+        else:
+            ip_addr=socket.gethostbyname(server)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.4)
+        result = sock.connect_ex((ip_addr, server_port))
+        sock.close()
+        return False if result != 0 else True
+    except:
+        return False
 
 #TODO: more sort method
 def get_path_by_time(dir):
