@@ -794,12 +794,8 @@ def check_connection():
     with ThreadPoolExecutor(max_workers = 4) as executor:
       results = executor.map(read_all_links, ssr_files)
     configs = [x for x in results]
-    for config in configs:
-        print(list(config.keys())[0])
-        with ThreadPoolExecutor(max_workers = 4) as executor:
-          results = executor.map(check_port_open, list(config.values())[0])
-        for x in results:
-            print(x)
+    with ThreadPoolExecutor(max_workers = 3) as executor:
+        results = executor.map(check_config, configs)    
     # print(configs)
 
 def read_all_links(ssr_filename):
@@ -807,6 +803,13 @@ def read_all_links(ssr_filename):
     with open(ssr_filename) as f:
         lines = f.readlines()
         return {filename: [ssrlink.parseLink(x) for x in lines if re.match('^ssr://',x)]}
+
+def check_config(config):
+    with ThreadPoolExecutor(max_workers = 4) as executor:
+        results = executor.map(check_port_open, list(config.values())[0])
+    print(list(config.keys())[0])
+    for x in results:
+        print(x)
 
 def check_port_open(config):
     try:
@@ -819,7 +822,7 @@ def check_port_open(config):
         else:
             ip_addr=socket.gethostbyname(server)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.4)
+        sock.settimeout(0.3)
         result = sock.connect_ex((ip_addr, server_port))
         sock.close()
         return False if result != 0 else True
