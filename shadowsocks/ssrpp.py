@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 import ssrlink
 import socket
+from struct import pack, unpack
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -838,6 +839,7 @@ def check_port_open(config):
         sock.close()
         return False if result != 0 else True
     except:
+        sock.close()
         return False
 
 #TODO: more sort method
