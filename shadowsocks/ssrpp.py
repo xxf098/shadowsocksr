@@ -731,7 +731,12 @@ def add_subscription_from_file(src_file, new_filename):
         filename = new_filename
     with open(src_file, 'r') as f:
         data = f.read()
-    write_ssr_data_to_file(data, filename)
+    ssr_pattern = re.compile(r'(ssr://[a-zA-Z0-9_]+)[\s\n]', re.IGNORECASE)
+    if re.match(ssr_pattern, data):
+        matches = re.findall(ssr_pattern, data)
+        write_ssr_links_to_file(matches, filename)
+    else:
+        write_ssr_data_to_file(data, filename)
 
 def add_subscription_from_url(url):
     try:
@@ -749,6 +754,12 @@ def write_ssr_data_to_file(data, filename):
     decode_data = base64.b64decode(data)
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(decode_data.decode('utf-8'))
+
+def write_ssr_links_to_file(links, filename):
+    filename = f'{DEFAULT_SSR_DIR}{filename}'
+    with open(filename, 'w', encoding='utf-8') as f:
+        for link in links:
+            f.write("%s\n" % link)
 
 def write_subscribe_url(url, filename):
     with open(filename, 'a', encoding='utf-8') as f:
