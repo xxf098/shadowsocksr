@@ -32,6 +32,7 @@ Start ssr client
 Add ssr subscription
 
     ./shadowsocks/ssrpp.py --sub https://subscription.ssr.com
+    ./shadowsocks/ssrpp.py --sub /path/to/ssrlinks.txt
 
 Start http proxy by forward to shadowsocks
 
