@@ -130,6 +130,8 @@ if __name__ == '__main__':
     config = {}
     if re.match(r'^ss://', ssrLink, re.I):
         config = parseSS(ssrLink)
-    if re.match(r'^ssr://', ssrLink, re.I):
+    elif re.match(r'^ssr://', ssrLink, re.I):
         config = parseSSR(ssrLink)
+    else:
+        raise Exception('Not Supported Link')
     print(json.dumps(config, indent=4, ensure_ascii=False))
