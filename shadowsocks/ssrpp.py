@@ -732,6 +732,7 @@ def add_subscription_from_file(src_file, new_filename):
         filename = new_filename
     with open(src_file, 'r') as f:
         data = f.read()
+    filename = f'{DEFAULT_SSR_DIR}{filename}'
     ssr_pattern = re.compile(r'(ssr://[a-zA-Z0-9_]+)[\s\n]', re.IGNORECASE)
     if re.match(ssr_pattern, data):
         matches = re.findall(ssr_pattern, data)
@@ -745,8 +746,8 @@ def add_subscription_from_url(url):
         filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
         write_ssr_data_to_file(data, filename)
         write_subscribe_url(url, filename)
-    except:
-        pass
+    except Exception as e:
+        print(e)
     return url
 
 def write_ssr_data_to_file(data, filename):
@@ -757,7 +758,6 @@ def write_ssr_data_to_file(data, filename):
         f.write(decode_data.decode('utf-8'))
 
 def write_ssr_links_to_file(links, filename):
-    filename = f'{DEFAULT_SSR_DIR}{filename}'
     with open(filename, 'w', encoding='utf-8') as f:
         for link in links:
             f.write("%s\n" % link)
