@@ -683,7 +683,8 @@ class KeyBindings:
             'down': 'KEY_DOWN',
             'left': 'KEY_LEFT',
             'right': 'KEY_RIGHT',
-            'enter': '\r'
+            'enter': '\r',
+            'delete': '\x04'
         }
         return keys_map.get(key, key)
 
@@ -718,6 +719,10 @@ def create_key_bindings(display):
             if not panel.focused:
                 continue
         display.change_foucs(1)
+    
+    @kb.add('delete')
+    def delete_item(event):
+        pass
     
     @kb.add('enter')
     def enter(event):
