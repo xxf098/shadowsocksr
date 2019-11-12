@@ -22,6 +22,7 @@ from concurrent.futures import as_completed
 import ssrlink
 import socket
 from struct import pack, unpack
+from collections import deque
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -532,6 +533,7 @@ class MultiPanelDisplay:
         self._setup_curses()
         self._setup_color()
         self.rebuild()
+        self.key_processor = KeyProcessor()
 
     def _setup_curses(self):
         self.screen.keypad(True)
@@ -585,6 +587,8 @@ class MultiPanelDisplay:
     def handle_key(self):
         # down KEY_DWON up key_UP left KEY_LEFT right KEY_RIGHT
         key = self.screen.getkey()
+        self.key_processor.feed(key)
+        self.key_processor.process_keys()
         if key == '\r':
             self.stop = True
             self.selected_server = self.panels[1].get_selectd()
@@ -605,6 +609,29 @@ class MultiPanelDisplay:
             self.panels[0].need_redraw = True
             self.panels[0].focused = True
             self.panels[1].focused = False
+
+session_display = None
+class KeyPressEvent:
+
+    def __init__(self, keys):
+        self.keys = keys
+        self.display = session_display
+
+class KeyProcessor:
+
+    def __init__(self):
+        self.input_queue = deque()
+        self._bindings = None
+
+    def feed(self, key):
+        self.input_queue.append(key)
+    
+    def feed_multiple(self, keys):
+        self.input_queue.extend(keys)
+
+    def process_keys(self):
+        print()
+        pass
 
 def main():
     try:
