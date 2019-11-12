@@ -531,7 +531,7 @@ class MultiPanelDisplay:
         self.ssr_dir = DEFAULT_SSR_DIR
         self._setup_curses()
         self._setup_color()
-        self.rebuld()
+        self.rebuild()
 
     def _setup_curses(self):
         self.screen.keypad(True)
@@ -544,7 +544,7 @@ class MultiPanelDisplay:
     def _setup_color(self):
         Style().setup_color()
 
-    def rebuld(self):
+    def rebuild(self):
         self.panels = []
         left = LeftPanelDispaly(self, 0)
         middle = MiddlePanelDispaly(self, 1, left_panel=left)
@@ -895,7 +895,7 @@ def select_ssr_names():
         height,width = stdscr.getmaxyx()
         screen = curses.newwin(height-1, width, 0, 0)
         display = MultiPanelDisplay(screen)
-        display.rebuld()
+        display.rebuild()
         result = display.draw()
         return result
     except KeyboardInterrupt:
