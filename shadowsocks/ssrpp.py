@@ -533,7 +533,8 @@ class MultiPanelDisplay:
         self._setup_curses()
         self._setup_color()
         self.rebuild()
-        self.key_processor = KeyProcessor()
+        key_bindings = create_key_bindings(self)
+        self.key_processor = KeyProcessor(key_bindings)
 
     def _setup_curses(self):
         self.screen.keypad(True)
@@ -617,11 +618,12 @@ class KeyPressEvent:
         self.keys = keys
         self.display = session_display
 
+# TODO: process multiple keys
 class KeyProcessor:
 
-    def __init__(self):
+    def __init__(self, key_bindings):
         self.input_queue = deque()
-        self._bindings = None
+        self._bindings = key_bindings
 
     def feed(self, key):
         self.input_queue.append(key)
@@ -630,8 +632,10 @@ class KeyProcessor:
         self.input_queue.extend(keys)
 
     def process_keys(self):
-        print()
-        pass
+        key =  self.input_queue.popleft()
+        binding = self._bindings.get_binding_for_keys([key])
+        if binding:
+            binding.call(KeyPressEvent([key]))
 
 class Binding:
 
@@ -658,11 +662,37 @@ class KeyBindings:
             return func
         return decorator
     
+    def get_binding_for_keys(self, keys):
+        match = None
+        for binding in self._bindings:
+            if len(keys) != len(binding.keys):
+                continue
+            found = True
+            for i, j in zip(keys, binding.keys):
+                if i != j:
+                    found = False
+                    break
+            if found:
+                match = binding 
+        return match
+            
+    
     def _parse_key(self, key):
         keys_map = {
-            'KEYDOWN': 'down'
+            'down': 'KEY_DOWN'
         }
         return keys_map.get(key, key)
+
+def create_key_bindings(display):
+    
+    kb = KeyBindings()
+
+    @kb.add('down')
+    def keydown(event):
+        print('keydown')
+        return
+
+    return kb
 
 def main():
     try:
