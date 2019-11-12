@@ -586,7 +586,6 @@ class MultiPanelDisplay:
         return (ssr_name, f'{len(left.lines)}:{len(middle.lines)}')
 
     def handle_key(self):
-        # down KEY_DWON up key_UP left KEY_LEFT right KEY_RIGHT
         key = self.screen.getkey()
         self.key_processor.feed(key)
         self.key_processor.process_keys()
@@ -689,13 +688,14 @@ def create_key_bindings(display):
     
     kb = KeyBindings()
     
-    def handle_panel(pos=None):
+    def handle_panel(pos=[]):
         def handle_focused(func):
             def handle_key(*args, **kwargs):
                 for panel in display.panels:
-                    if not panel.focused or \
-                        (pos == 'left' and not isinstance(panel, LeftPanelDispaly)) or \
-                        (pos == 'middle' and not isinstance(panel, MiddlePanelDispaly)):
+                    if not panel.focused:
+                        continue
+                    if ('left' in pos and not isinstance(panel, LeftPanelDispaly)) or \
+                        ('middle' in pos and not isinstance(panel, MiddlePanelDispaly)):
                         continue
                     func(panel)
             return handle_key
@@ -718,12 +718,27 @@ def create_key_bindings(display):
 
     @kb.add('right')
     @handle_panel()
-    def keyright(event):
+    def keyright(panel):
         display.change_foucs(1)
     
     @kb.add('delete')
-    def delete_item(event):
-        pass
+    @handle_panel(['left', 'middle'])
+    def delete_item(panel):
+        if isinstance(panel, LeftPanelDispaly):
+            ssr_name = panel.lines[panel.highlight_index]
+            remove_ssr(ssr_name)
+            panel.lines.pop(panel.highlight_index)
+            panel.highlight_index = max(0, panel.highlight_index - 1)
+            if ssr_name in ssr_names_cache:
+                del ssr_names_cache[ssr_name]
+        
+        if isinstance(panel, MiddlePanelDispaly):
+            ssr_name = panel.lines[panel.highlight_index]
+            remove_ssr(ssr_name)
+            panel.lines.pop(panel.highlight_index)
+            panel.highlight_index = max(0, panel.highlight_index - 1)
+            if ssr_name in ssr_cache:
+                del ssr_names_cache[ssr_name]
     
     @kb.add('enter')
     def enter(event):
