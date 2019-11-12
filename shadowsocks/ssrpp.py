@@ -590,10 +590,7 @@ class MultiPanelDisplay:
         key = self.screen.getkey()
         self.key_processor.feed(key)
         self.key_processor.process_keys()
-        # if key == '\r':
-        #     self.stop = True
-        #     self.selected_server = self.panels[1].get_selectd()
-        if key not in ['\x04', '\x19']:
+        if key not in ['\x19']:
             return
         for panel in self.panels:
             panel.handle_key(key)
@@ -691,32 +688,36 @@ class KeyBindings:
 def create_key_bindings(display):
     
     kb = KeyBindings()
-
-    def handle_focused(func):
-        def handle_key(*args, **kwargs):
-            for panel in display.panels:
-                if not panel.focused:
-                    continue
-                func(panel)
-        return handle_key
+    
+    def handle_panel(pos=None):
+        def handle_focused(func):
+            def handle_key(*args, **kwargs):
+                for panel in display.panels:
+                    if not panel.focused or \
+                        (pos == 'left' and not isinstance(panel, LeftPanelDispaly)) or \
+                        (pos == 'middle' and not isinstance(panel, MiddlePanelDispaly)):
+                        continue
+                    func(panel)
+            return handle_key
+        return handle_focused       
 
     @kb.add('down')
-    @handle_focused
+    @handle_panel()
     def keydown(panel):
         panel.highlight_index = min(len(panel.lines)-1, panel.highlight_index + 1)
 
     @kb.add('up')
-    @handle_focused
+    @handle_panel()
     def keyup(panel):
         panel.highlight_index = max(0, panel.highlight_index - 1)
 
     @kb.add('left')
-    @handle_focused
+    @handle_panel()
     def keyleft(panel):
         display.change_foucs(-1)
 
     @kb.add('right')
-    @handle_focused
+    @handle_panel()
     def keyright(event):
         display.change_foucs(1)
     
