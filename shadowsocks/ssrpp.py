@@ -692,32 +692,32 @@ def create_key_bindings(display):
     
     kb = KeyBindings()
 
+    def handle_focused(func):
+        def handle_key(*args, **kwargs):
+            for panel in display.panels:
+                if not panel.focused:
+                    continue
+                func(panel)
+        return handle_key
+
     @kb.add('down')
-    def keydown(event):
-        for panel in display.panels:
-            if not panel.focused:
-                continue
-            panel.highlight_index = min(len(panel.lines)-1, panel.highlight_index + 1)
+    @handle_focused
+    def keydown(panel):
+        panel.highlight_index = min(len(panel.lines)-1, panel.highlight_index + 1)
 
     @kb.add('up')
-    def keyup(event):
-        for panel in display.panels:
-            if not panel.focused:
-                continue
-            panel.highlight_index = max(0, panel.highlight_index - 1)
+    @handle_focused
+    def keyup(panel):
+        panel.highlight_index = max(0, panel.highlight_index - 1)
 
     @kb.add('left')
-    def keyleft(event):
-        for panel in display.panels:
-            if not panel.focused:
-                continue
+    @handle_focused
+    def keyleft(panel):
         display.change_foucs(-1)
 
     @kb.add('right')
+    @handle_focused
     def keyright(event):
-        for panel in display.panels:
-            if not panel.focused:
-                continue
         display.change_foucs(1)
     
     @kb.add('delete')
