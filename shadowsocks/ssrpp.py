@@ -633,6 +633,37 @@ class KeyProcessor:
         print()
         pass
 
+class Binding:
+
+    def __init__(self, keys, handler):
+        self.keys = keys
+        self.handler = handler
+    
+    def call(self, event):
+        self.handler(event)
+
+class KeyBindings:
+    def __init__(self):
+        self._bindings = []
+    
+    @property
+    def bindings(self):
+        return self._bindings
+    
+    def add(self, *keys):
+
+        keys = [self._parse_key(key) for key in keys]
+        def decorator(func):
+            self.bindings.append(Binding(keys, func))
+            return func
+        return decorator
+    
+    def _parse_key(self, key):
+        keys_map = {
+            'KEYDOWN': 'down'
+        }
+        return keys_map.get(key, key)
+
 def main():
     try:
         parser = argparse.ArgumentParser()
