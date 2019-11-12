@@ -593,7 +593,7 @@ class MultiPanelDisplay:
         # if key == '\r':
         #     self.stop = True
         #     self.selected_server = self.panels[1].get_selectd()
-        if key not in ['KEY_DOWN', 'KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04', '\x19']:
+        if key not in ['KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04', '\x19']:
             return
         for panel in self.panels:
             panel.handle_key(key)
@@ -679,7 +679,10 @@ class KeyBindings:
     
     def _parse_key(self, key):
         keys_map = {
+            'up': 'KEY_UP',
             'down': 'KEY_DOWN',
+            'left': 'KEY_LEFT',
+            'right': 'KEY_RIGHT',
             'enter': '\r'
         }
         return keys_map.get(key, key)
@@ -690,8 +693,10 @@ def create_key_bindings(display):
 
     @kb.add('down')
     def keydown(event):
-        print('keydown')
-        return
+        for panel in display.panels:
+            if not panel.focused:
+                continue
+            panel.highlight_index = min(len(panel.lines)-1, panel.highlight_index + 1)
     
     @kb.add('enter')
     def enter(event):
