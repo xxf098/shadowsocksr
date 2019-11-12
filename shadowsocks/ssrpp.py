@@ -593,7 +593,7 @@ class MultiPanelDisplay:
         # if key == '\r':
         #     self.stop = True
         #     self.selected_server = self.panels[1].get_selectd()
-        if key not in ['KEY_UP', 'KEY_LEFT', 'KEY_RIGHT', '\x04', '\x19']:
+        if key not in ['KEY_LEFT', 'KEY_RIGHT', '\x04', '\x19']:
             return
         for panel in self.panels:
             panel.handle_key(key)
@@ -697,6 +697,13 @@ def create_key_bindings(display):
             if not panel.focused:
                 continue
             panel.highlight_index = min(len(panel.lines)-1, panel.highlight_index + 1)
+
+    @kb.add('up')
+    def keyup(event):
+        for panel in display.panels:
+            if not panel.focused:
+                continue
+            panel.highlight_index = max(0, panel.highlight_index - 1)
     
     @kb.add('enter')
     def enter(event):
@@ -705,6 +712,7 @@ def create_key_bindings(display):
 
     return kb
 
+# TODO: pager
 def main():
     try:
         parser = argparse.ArgumentParser()
