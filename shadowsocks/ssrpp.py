@@ -446,9 +446,14 @@ class MiddlePanelDispaly(SinglePanelDispaly):
     def _draw_lines(self):
         if not self.focused:
             self.screen.erase()
-        for line, i in zip(self.lines, range(self.height)):
+        lines = self.lines
+        skip = self.highlight_index - self.height + 2 if self.highlight_index + 2 - self.height >= 1 else 0
+        irange = min(len(lines)-skip, self.height)
+        for i in range(irange):
+            i = i+ skip
+            line = lines[i]
             if self.focused:
-                if self.highlight_index > 0 and abs(i-self.highlight_index) > 1:
+                if self.highlight_index > 0 and abs(i-self.highlight_index) > 1 and skip == 0:
                     continue
                 curses.setsyx(i, self.x)
                 self.screen.clrtoeol()
@@ -459,7 +464,7 @@ class MiddlePanelDispaly(SinglePanelDispaly):
                 if self.focused:
                     line = line + ' ' * max(self.width-len(line) - self.padding, 0)
                     style = self.highlight_style
-            self.screen.addnstr(i, self.padding, line, self.width - self.padding, style)
+            self.screen.addnstr(i-skip, self.padding, line, self.width - self.padding, style)
 
 class RightPanelDispaly(SinglePanelDispaly):
 
