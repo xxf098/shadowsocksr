@@ -672,9 +672,9 @@ class KeyBindings:
                 match = binding 
         return match
             
-    
+    # TODO:
     def _parse_key(self, key):
-        keys_map = {
+        KEY_ALIASES = {
             'up': 'KEY_UP',
             'down': 'KEY_DOWN',
             'left': 'KEY_LEFT',
@@ -682,12 +682,11 @@ class KeyBindings:
             'enter': '\r',
             'delete': '\x04'
         }
-        return keys_map.get(key, key)
+        return KEY_ALIASES.get(key, key)
 
 def create_key_bindings(display):
-    
+
     kb = KeyBindings()
-    
     def handle_panel(pos=[]):
         def handle_focused(func):
             def handle_key(*args, **kwargs):
@@ -699,7 +698,7 @@ def create_key_bindings(display):
                         continue
                     func(panel)
             return handle_key
-        return handle_focused       
+        return handle_focused
 
     @kb.add('down')
     @handle_panel()
@@ -720,7 +719,7 @@ def create_key_bindings(display):
     @handle_panel()
     def keyright(panel):
         display.change_foucs(1)
-    
+
     @kb.add('delete')
     @handle_panel(['left', 'middle'])
     def delete_item(panel):
@@ -731,7 +730,6 @@ def create_key_bindings(display):
             panel.highlight_index = max(0, panel.highlight_index - 1)
             if ssr_name in ssr_names_cache:
                 del ssr_names_cache[ssr_name]
-        
         if isinstance(panel, MiddlePanelDispaly):
             ssr_name = panel.lines[panel.highlight_index]
             remove_ssr(ssr_name)
@@ -739,7 +737,7 @@ def create_key_bindings(display):
             panel.highlight_index = max(0, panel.highlight_index - 1)
             if ssr_name in ssr_cache:
                 del ssr_names_cache[ssr_name]
-    
+
     @kb.add('enter')
     def enter(event):
         display.stop = True
@@ -782,7 +780,6 @@ def main():
     os.system(cmd)
 
 # TODO: support user pass directory path
-# TODO: refactor
 # TODO: Sort by modify time
 # TODO: JSON Format
 ssr_cache = {}
