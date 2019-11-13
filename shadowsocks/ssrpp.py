@@ -449,6 +449,8 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         lines = self.lines
         skip = self.highlight_index - self.height + 2 if self.highlight_index + 2 - self.height >= 1 else 0
         irange = min(len(lines)-skip, self.height)
+        if self.focused and skip > 0:
+            self.screen.erase()
         for i in range(irange):
             i = i+ skip
             line = lines[i]
