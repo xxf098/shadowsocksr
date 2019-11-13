@@ -301,14 +301,6 @@ class SinglePanelDispaly:
         self.left_panel = left_panel
         self.padding = 1
         self.need_redraw = True
-        self.keymap = {
-            'KEY_DOWN': self.handle_key_down,
-            'KEY_UP': self.handle_key_up,
-            'KEY_LEFT': self.handle_key_left,
-            'KEY_RIGHT': self.handle_key_right,
-            '\x04': self.handle_delete,
-            '\x19': self.handle_copy # Ctrl - y
-        }
         self.highlight_style = Style().attrs_to_style(highlight_style)
         self.highlight_style_not_focus = Style().attrs_to_style(highlight_style_not_focus)
         self.highlight_index = 0
@@ -357,11 +349,7 @@ class SinglePanelDispaly:
         pass
 
     def handle_key(self, key):
-        if not self.focused:
-            return
-        if key not in self.keymap:
-            return
-        self.keymap[key]()
+        pass
 
     def _setup_data(self):
         pass
@@ -402,6 +390,9 @@ class LeftPanelDispaly(SinglePanelDispaly):
         self.highlight_index = max(0, self.highlight_index - 1)
         if ssr_name in ssr_names_cache:
             del ssr_names_cache[ssr_name]
+    
+    def handle_copy(self):
+        pass
 
     def draw(self):
         super().draw()
@@ -440,7 +431,6 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         ssr_name = self.lines[self.highlight_index]
         ssr_link = ssr_link_cache[ssr_name]
         if len(ssr_link) > 0:
-            # TODO: update status
             os.system(f'echo {ssr_link} | xsel --clipboard')
 
     def _draw_lines(self):
@@ -594,10 +584,6 @@ class MultiPanelDisplay:
         key = self.screen.getkey()
         self.key_processor.feed(key)
         self.key_processor.process_keys()
-        if key not in ['\x19']:
-            return
-        for panel in self.panels:
-            panel.handle_key(key)
 
     # direction -1 left 1 right
     def change_foucs(self, direction):
@@ -685,7 +671,8 @@ class KeyBindings:
             'left': 'KEY_LEFT',
             'right': 'KEY_RIGHT',
             'enter': '\r',
-            'delete': '\x04'
+            'delete': '\x04',
+            'c-y': '\x19'
         }
         return KEY_ALIASES.get(key, key)
 
@@ -729,6 +716,11 @@ def create_key_bindings(display):
     @handle_panel(['left', 'middle'])
     def delete_item(panel):
         panel.handle_delete()
+    
+    @kb.add('c-y')
+    @handle_panel(['left', 'middle'])
+    def copy_item(panel):
+        panel.handle_copy()
 
     @kb.add('enter')
     def enter(event):
