@@ -392,7 +392,10 @@ class LeftPanelDispaly(SinglePanelDispaly):
             del ssr_names_cache[ssr_name]
     
     def handle_copy(self):
-        pass
+        data = self.preview_data()
+        if len(data) > 0:
+            data = '\n'.join(data)
+            os.system(f'echo "{data}" | xsel --clipboard')
 
     def draw(self):
         super().draw()
@@ -431,7 +434,7 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         ssr_name = self.lines[self.highlight_index]
         ssr_link = ssr_link_cache[ssr_name]
         if len(ssr_link) > 0:
-            os.system(f'echo {ssr_link} | xsel --clipboard')
+            os.system(f'echo "{ssr_link}" | xsel --clipboard')
 
     def _draw_lines(self):
         lines = self.lines
@@ -791,6 +794,7 @@ def preview_ssr(filename, is_get_link=False):
     if re.match(SSR_FILE_REGEX, filename):
         line_num = 0 if not multiple_match else int(multiple_match.group(1))
         ssr_link = lines[line_num - 1].rstrip()
+        #TODO: replce with ssrlink
         cmd = ['python3', f'{BASE_DIR}/shadowsocks/ssrlink.py', ssr_link]
         output = subprocess.check_output(cmd)
         result.extend([replace_hide_field(x) for x in output.decode('utf-8').split('\n')])
