@@ -728,20 +728,7 @@ def create_key_bindings(display):
     @kb.add('delete')
     @handle_panel(['left', 'middle'])
     def delete_item(panel):
-        if isinstance(panel, LeftPanelDispaly):
-            ssr_name = panel.lines[panel.highlight_index]
-            remove_ssr(ssr_name)
-            panel.lines.pop(panel.highlight_index)
-            panel.highlight_index = max(0, panel.highlight_index - 1)
-            if ssr_name in ssr_names_cache:
-                del ssr_names_cache[ssr_name]
-        if isinstance(panel, MiddlePanelDispaly):
-            ssr_name = panel.lines[panel.highlight_index]
-            remove_ssr(ssr_name)
-            panel.lines.pop(panel.highlight_index)
-            panel.highlight_index = max(0, panel.highlight_index - 1)
-            if ssr_name in ssr_cache:
-                del ssr_names_cache[ssr_name]
+        panel.handle_delete()
 
     @kb.add('enter')
     def enter(event):
