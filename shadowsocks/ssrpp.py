@@ -444,12 +444,10 @@ class MiddlePanelDispaly(SinglePanelDispaly):
             os.system(f'echo {ssr_link} | xsel --clipboard')
 
     def _draw_lines(self):
-        if not self.focused:
-            self.screen.erase()
         lines = self.lines
-        skip = self.highlight_index - self.height + 2 if self.highlight_index + 2 - self.height >= 1 else 0
+        skip = self.highlight_index - self.height + 2 if self.highlight_index + 2 - self.height >= 0 else 0
         irange = min(len(lines)-skip, self.height)
-        if self.focused and skip > 0:
+        if not self.focused or (self.focused and skip > 0):
             self.screen.erase()
         for i in range(irange):
             i = i+ skip
