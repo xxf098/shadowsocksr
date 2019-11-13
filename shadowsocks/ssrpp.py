@@ -698,7 +698,7 @@ def create_key_bindings(display):
                 for panel in display.panels:
                     if not panel.focused:
                         continue
-                    if ('left' in pos and not isinstance(panel, LeftPanelDispaly)) or \
+                    if ('left' in pos and not isinstance(panel, LeftPanelDispaly)) and \
                         ('middle' in pos and not isinstance(panel, MiddlePanelDispaly)):
                         continue
                     func(panel)
