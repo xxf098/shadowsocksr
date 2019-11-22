@@ -888,7 +888,10 @@ def write_ssr_data_to_file(data, filename):
         data = data + '=='
     decode_data = base64.b64decode(data)
     with open(filename, 'w', encoding='utf-8') as f:
-        f.write(decode_data.decode('utf-8'))
+        decode_data = decode_data.decode('utf-8')
+        if re.search(r'\s+ssr?:', decode_data):
+            decode_data=re.sub(r'\s+(ssr?:)', r'\n\1', decode_data)
+        f.write(decode_data)
 
 def write_ssr_links_to_file(links, filename):
     with open(filename, 'w', encoding='utf-8') as f:
