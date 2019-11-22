@@ -417,6 +417,8 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         self.lines = lines
 
     def preview_data(self):
+        if not self.lines:
+            return []
         ssr_name = self.lines[self.highlight_index]
         return preview_ssr(ssr_name)
 
@@ -986,7 +988,10 @@ def check_port_open(config):
 def get_path_by_time(dir):
     ssrs = []
     with os.scandir(dir) as it:
-        ssrs = [(entry.path, entry.stat().st_mtime) for entry in it if entry.is_file() if re.match('(.*\.ssr$)|(.*\.json$)', entry.name) ]
+        ssrs = [(entry.path, entry.stat().st_mtime) for entry in it \
+            if entry.is_file() \
+            if re.match('(.*\.ssr$)|(.*\.json$)', entry.name) \
+            if os.stat(entry.path).st_size > 0]
         ssrs.sort(key=lambda x: x[1], reverse=True)
         ssrs = [x[0] for x in ssrs]
     return ssrs
