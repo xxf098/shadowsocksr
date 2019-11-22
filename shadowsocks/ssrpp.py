@@ -739,6 +739,7 @@ def main():
         parser.add_argument('dir', nargs='?', default=DEFAULT_SSR_DIR)
         parser.add_argument('-p', '--preview')
         parser.add_argument('-s', '--sub')
+        parser.add_argument('--proxy', nargs='?', default=argparse.SUPPRESS)
         parser.add_argument('--update', default=None)
         parser.add_argument('--check', nargs='?', help='check port open')
         parser.add_argument('--name', default=None)
@@ -746,7 +747,10 @@ def main():
         if args.preview:
             return preview_ssr(args.preview)
         if args.sub:
-            return add_subscription(sys.argv[2], args.name)
+            proxy = None
+            if ('proxy' in args):
+                proxy = args.proxy if args.proxy is not None else 'https://127.0.0.1:8087'
+            return add_subscription(args.sub, args.name, proxy)
         if args.update:
             update_type = args.update
             return update_subscription(update_type)
@@ -843,7 +847,7 @@ url_pattern = re.compile(
         r'(?::\d+)?'
         r'(?:/?|[/?]\S+)$', re.IGNORECASE
         )
-def add_subscription(url, new_filename=None):
+def add_subscription(url, new_filename=None, proxy=None):
     if re.match(url_pattern, url):
         add_subscription_from_url(url)
     else:
@@ -867,9 +871,9 @@ def add_subscription_from_file(src_file, new_filename):
     else:
         write_ssr_data_to_file(data, filename)
 
-def add_subscription_from_url(url):
+def add_subscription_from_url(url, proxy=None):
     try:
-        data = request_url(url)
+        data = request_url(url, proxy)
         filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
         write_ssr_data_to_file(data, filename)
         write_subscribe_url(url, filename)
@@ -893,12 +897,15 @@ def write_subscribe_url(url, filename):
     with open(filename, 'a', encoding='utf-8') as f:
         f.write(url)
 
-def request_url(url):
+def request_url(url, proxy):
     if not re.match(url_pattern, url):
         raise Exception(f'Invalid url {url}')
     req = Request( url, data=None,
     headers={ 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36' }
     )
+    if proxy:
+        req.set_proxy(proxy, 'https')
+        req.set_proxy(proxy, 'http')
     r = urlopen(req)
     data = r.read().decode(r.info().get_param('charset') or 'utf-8')
     return data
@@ -1060,6 +1067,6 @@ def match_multiple_links_filename(filename):
 # TODO: confirm handle all key fuzzy search
 # TODO: count call_back delete event driven
 # TODO: three panel git http_proxy power request add index sort options file info
-# TODO: kill current process
+# TODO: kill current process | multiple keys | sort by name Or time | pageup pagedown | event loop
 if __name__ == '__main__':
     main()
