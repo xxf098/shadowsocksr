@@ -1020,7 +1020,10 @@ async def get_ssrname(ssr):
     if re.match(SSR_FILE_REGEX, ssr):
         with open(ssr) as f:
             lines = f.readlines()
-            if len(lines) == 1:
+            length = len(lines)
+            if length == 0:
+                return []
+            if length == 1:
                 ssr_names.append(filename)
                 return ssr_names
             name_parts = filename.split('.')
