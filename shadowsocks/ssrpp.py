@@ -850,8 +850,10 @@ url_pattern = re.compile(
 def add_subscription(url, new_filename=None, proxy=None):
     if re.match(url_pattern, url):
         add_subscription_from_url(url)
-    else:
+    elif os.path.exists(url):
         add_subscription_from_file(url, new_filename)
+    else:
+        raise Exception(f'Not Supported f{url}')
 
 def add_subscription_from_file(src_file, new_filename):
     if not isfile(src_file):
