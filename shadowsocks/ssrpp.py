@@ -30,6 +30,7 @@ DEFAULT_SSR_DIR = f'{BASE_DIR}/json/'
 SSR_LINK_REGEX = '^ssr?://[a-zA-Z0-9]+'
 JSON_FILE_REGEX = '.*\.json$'
 SSR_FILE_REGEX = '.*\.ssr$'
+DEFAULT_PROXY = 'https://127.0.0.1:8087'
 
 FG_COLORS = {
     "black"   : curses.COLOR_BLACK,
@@ -749,7 +750,7 @@ def main():
         if args.sub:
             proxy = None
             if ('proxy' in args):
-                proxy = args.proxy if args.proxy is not None else 'https://127.0.0.1:8087'
+                proxy = args.proxy if args.proxy is not None else DEFAULT_PROXY
             return add_subscription(args.sub, args.name, proxy)
         if args.update:
             update_type = args.update
