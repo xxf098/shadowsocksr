@@ -874,19 +874,18 @@ def add_subscription_from_file(src_file, new_filename):
         matches = re.findall(ssr_pattern, data)
         write_ssr_links_to_file(matches, filename)
     else:
-        write_ssr_data_to_file(data, filename)
+        write_ssr_data_to_file(data, filename, None)
 
 def add_subscription_from_url(url, proxy=None):
     try:
         data = request_url(url, proxy)
         filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}'
-        write_ssr_data_to_file(data, filename)
-        write_subscribe_url(url, filename)
+        write_ssr_data_to_file(data, filename, url)
     except Exception as e:
         print(e)
     return url
 
-def write_ssr_data_to_file(data, filename):
+def write_ssr_data_to_file(data, filename, url):
     if not data.endswith('=='):
         data = data + '=='
     decode_data = base64.b64decode(data)
@@ -897,6 +896,8 @@ def write_ssr_data_to_file(data, filename):
         if re.search(r'\s+ssr?:', decode_data):
             decode_data=re.sub(r'\s+(ssr?:)', r'\n\1', decode_data)
         f.write(decode_data)
+        if url is not None:
+            f.write(url)
 
 def write_ssr_links_to_file(links, filename):
     with open(filename, 'w', encoding='utf-8') as f:
