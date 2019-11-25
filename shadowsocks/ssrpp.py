@@ -378,7 +378,7 @@ class LeftPanelDispaly(SinglePanelDispaly):
         ssr_name = self.lines[self.highlight_index]
         if re.match(JSON_FILE_REGEX, ssr_name):
             return [ssr_name]
-        if re.match(SSR_FILE_REGEX, ssr_name):
+        if re.match(SSR_FILE_REGEX, ssr_name) or re.match(VMESS_FILE_REGEX, ssr_name):
             ssr_name = f'{self.parent.ssr_dir}/{ssr_name}'
             return get_ssrnames([ssr_name])
         return []
@@ -422,7 +422,8 @@ class MiddlePanelDispaly(SinglePanelDispaly):
         if not self.lines:
             return []
         ssr_name = self.lines[self.highlight_index]
-        return preview_ssr(ssr_name)
+        preview_data = preview_vmess(ssr_name) if re.match(VMESS_FILE_REGEX, ssr_name) else preview_ssr(ssr_name)
+        return preview_data
 
     def get_selectd(self):
         return self.lines[self.highlight_index]
@@ -811,6 +812,9 @@ def preview_ssr(filename, is_get_link=False):
         ssr_link_cache[origin_filename] = ssr_link
         return result
     # print(filepath)
+
+def preview_vmess(filename):
+    return [f'#TODO: {filename}']
 
 def replace_hide_field(x):
     if re.match('\s+"server_port":\s+\d+,?$', x, re.I):
