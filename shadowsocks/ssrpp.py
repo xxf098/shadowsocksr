@@ -28,8 +28,10 @@ FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
 DEFAULT_SSR_DIR = f'{BASE_DIR}/json/'
 SSR_LINK_REGEX = '^ssr?://[a-zA-Z0-9]+'
+VMESS_LINK_REGEX = '^vmess://[a-zA-Z0-9\n]+'
 JSON_FILE_REGEX = '.*\.json$'
 SSR_FILE_REGEX = '.*\.ssr$'
+VMESS_FILE_REGEX = '.*\.vmess$'
 DEFAULT_PROXY = 'https://127.0.0.1:8087'
 
 FG_COLORS = {
@@ -993,7 +995,7 @@ def get_path_by_time(dir):
     with os.scandir(dir) as it:
         ssrs = [(entry.path, entry.stat().st_mtime) for entry in it \
             if entry.is_file() \
-            if re.match('(.*\.ssr$)|(.*\.json$)', entry.name) \
+            if re.match('.*\.(ssr|json|vmess)$', entry.name) \
             if os.stat(entry.path).st_size > 0]
         ssrs.sort(key=lambda x: x[1], reverse=True)
         ssrs = [x[0] for x in ssrs]
@@ -1020,7 +1022,7 @@ async def get_ssrname(ssr):
         return ssr_names_cache[filename]
     if re.match(JSON_FILE_REGEX, ssr):
         ssr_names.append(filename)
-    if re.match(SSR_FILE_REGEX, ssr):
+    if re.match(SSR_FILE_REGEX, ssr) or re.match(VMESS_FILE_REGEX, ssr):
         with open(ssr) as f:
             lines = f.readlines()
             length = len(lines)
@@ -1033,7 +1035,7 @@ async def get_ssrname(ssr):
             name_parts.insert(-1, '0')
             new_names = []
             for line in lines:
-                if re.match(SSR_LINK_REGEX, line):
+                if re.match(SSR_LINK_REGEX, line) or re.match(VMESS_LINK_REGEX, line):
                     name_parts[-2] = '_' + str(len(new_names) + 1) + '_'
                     new_names.append('.'.join(name_parts))
             ssr_names.extend(new_names)
