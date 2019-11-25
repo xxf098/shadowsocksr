@@ -774,7 +774,8 @@ def main():
     if selected_server is None:
         return
     cmd = build_cmd(selected_server, ssr_dir)
-    os.system(cmd)
+    if cmd:
+        os.system(cmd)
 
 # TODO: support user pass directory path
 # TODO: Sort by modify time
@@ -1081,7 +1082,25 @@ def build_cmd(ssr_name, ssr_dir):
                 ssr_link = lines[line_num - 1].rstrip()
                 if re.match(SSR_LINK_REGEX, ssr_link):
                     cmd = f'{cmd} -L {ssr_link}'
+    if re.match(VMESS_FILE_REGEX, ssr_name):
+        return build_cmd_vmess(ssr_name, ssr_dir)
     return f'{cmd} --ssr-name=\'{ssr_name}\''
+
+def build_cmd_vmess(vmess_name, ssr_dir):
+    match = re.match('.*\._(\d+)_\.vmess?$', vmess_name)
+    if not match:
+        return ''
+    line_num = match.group(1)
+    line_num = int(line_num)
+    vmess_name = re.sub('_\d+_\.', '', vmess_name)
+    vmess_path = f'{ssr_dir}{vmess_name}'
+    with open(vmess_path) as f:
+        lines = f.readlines()
+        vmess_link = lines[line_num - 1].rstrip()
+        if re.match(VMESS_LINK_REGEX, vmess_link):
+            print(vmess_link)
+    return None
+    
 
 def match_multiple_links_filename(filename):
     match = re.match('.*\._(\d+)_\.ssr?$', filename)
