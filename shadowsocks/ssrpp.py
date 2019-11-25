@@ -879,7 +879,7 @@ def add_subscription_from_file(src_file, new_filename):
 def add_subscription_from_url(url, proxy=None):
     try:
         data = request_url(url, proxy)
-        filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}.ssr'
+        filename = f'{DEFAULT_SSR_DIR}{urlsplit(url).netloc}'
         write_ssr_data_to_file(data, filename)
         write_subscribe_url(url, filename)
     except Exception as e:
@@ -890,8 +890,10 @@ def write_ssr_data_to_file(data, filename):
     if not data.endswith('=='):
         data = data + '=='
     decode_data = base64.b64decode(data)
+    decode_data = decode_data.decode('utf-8')
+    extension = 'vmess' if re.match(r'^vmess://', decode_data) else 'ssr'
+    filename = f'{filename}.{extension}'
     with open(filename, 'w', encoding='utf-8') as f:
-        decode_data = decode_data.decode('utf-8')
         if re.search(r'\s+ssr?:', decode_data):
             decode_data=re.sub(r'\s+(ssr?:)', r'\n\1', decode_data)
         f.write(decode_data)
