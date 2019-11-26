@@ -188,6 +188,7 @@ def parse_vmess(vmess_link, local_port):
     }
     vmess = {
         'protocol': 'vmess',
+        'description': vmess_config.get('ps', ''),
         'settings': {'vnext': [
             {
                 'address': vmess_config['add'],
