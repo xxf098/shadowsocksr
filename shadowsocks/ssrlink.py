@@ -7,6 +7,7 @@ import json
 
 __all__ = (
     'parseLink',
+    'addPadding'
 )
 
 # def paddingB64Str(s):
@@ -128,7 +129,7 @@ def parseSS(ssURL):
 
 
 def parse_vmess(vmess_link, local_port):
-    vmess_match = re.match(r'^vmess://(\w+=*)', vmess_link)
+    vmess_match = re.match(r'^vmess://([\w+]+=*)', vmess_link)
     if not vmess_match:
         return None
     data = vmess_match.group(1)
