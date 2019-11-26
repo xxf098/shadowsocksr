@@ -157,7 +157,7 @@ def parse_vmess(vmess_link, local_port):
     default_config['inbounds'] = [
         {
             'tag': 'socks-in',
-            'port': 8089,
+            'port': 8088,
             'listen': '::',
             'protocol': 'socks',
             'settings': {'auth': 'noauth', 'udp': True, 'ip': '127.0.0.1'}
