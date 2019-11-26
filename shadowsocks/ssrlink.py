@@ -133,6 +133,7 @@ def parse_vmess(vmess_link, local_port):
     if not vmess_match:
         return None
     data = vmess_match.group(1)
+    data = addPadding(data)
     result = base64.b64decode(data).decode('utf-8')
     vmess_config = json.loads(result)
     default_config = {}
