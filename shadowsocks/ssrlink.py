@@ -1,16 +1,21 @@
 from __future__ import absolute_import, division, print_function, \
     with_statement
-    
 import sys
 import re
 import base64
 import json
 
+__all__ = (
+    'parseLink',
+)
+
 # def paddingB64Str(s):
 #     return s + '=' * (-len(s) % 4)
 
+
 def addPadding(s):
     return s + '=' * (-len(s) % 4)
+
 
 def decodeToStr(encodeData, exitOnError=False):
     result = ''
@@ -23,9 +28,11 @@ def decodeToStr(encodeData, exitOnError=False):
         pass
     return result
 
+
 def DecodeUrlSafeBase64(val, exitOnError=True):
     val = val.replace('-', '+').replace('_', '/')
     return decodeToStr(addPadding(val), exitOnError)
+
 
 def ParseParam(param_str):
     params_dict = {}
@@ -39,6 +46,8 @@ def ParseParam(param_str):
     return params_dict
 
 # ssr://host:port:protocol:method:obfs:base64pass/?obfsparam=base64&remarks=base64&group=base64&udpport=0&uot=1
+
+
 def parseSSR(link, local_port=None):
     ssrMatch = re.match(r'^ssr?://([A-Za-z0-9_-]+)', link, re.I)
     if not ssrMatch:
@@ -51,7 +60,7 @@ def parseSSR(link, local_port=None):
         data = data[0:param_start_pos]
     if data.find('/') > 0:
         data = data[0:data.rindex('/')]
-    
+
     match = re.match(r'^(.+):([^:]+):([^:]*):([^:]+):([^:]*):([^:]+)', data)
     if not match:
         # TODO: throw error
@@ -86,12 +95,14 @@ def parseSSR(link, local_port=None):
     if 'group' in params_dict:
         group = DecodeUrlSafeBase64(params_dict['group'])
         config['group'] = group
-    # 'uot', 'udpport'         
+    # 'uot', 'udpport'
     return config
+
 
 def parseSS(ssURL):
     UrlFinder = re.compile(r'^(?i)ss://([A-Za-z0-9+-/=_@:]+)(#(.+))?', re.I)
-    DetailsParser = re.compile(r'^((?P<method>.+):(?P<password>.*)@(?P<hostname>.+?):(?P<port>\\d+?))$', re.I)
+    DetailsParser = re.compile(
+        r'^((?P<method>.+):(?P<password>.*)@(?P<hostname>.+?):(?P<port>\\d+?))$', re.I)
     match = UrlFinder.match(ssURL)
     if not match:
         raise Exception('FormatException ss')
@@ -106,21 +117,117 @@ def parseSS(ssURL):
     server_port = match.group('port')
     group = ""
     config = {
-            'protocol': protocol,
-            'method': method,
-            'password': password,
-            'server': server,
-            'server_port': server_port,
-            'group': group
-            }
+        'protocol': protocol,
+        'method': method,
+        'password': password,
+        'server': server,
+        'server_port': server_port,
+        'group': group
+    }
     return config
+
+
+def parse_vmess(vmess_link, local_port):
+    vmess_match = re.match(r'^vmess://(\w+=*)', vmess_link)
+    if not vmess_match:
+        return None
+    data = vmess_match.group(1)
+    result = base64.b64decode(data).decode('utf-8')
+    vmess_config = json.loads(result)
+    default_config = {}
+    default_config['log'] = {'access': '', 'error': '', 'loglevel': ''}
+    default_config['dns'] = {'servers': ['1.0.0.1', 'localhost']}
+    default_config['routing'] = {
+        'domainStrategy': 'IPIfNonMatch',
+        'rules': [
+            {
+                'type': 'field',
+                'ip': ['geoip:private', 'geoip:cn'],
+                'outboundTag': 'direct'
+            },
+            {
+                'type': 'field',
+                'domain': ['geosite:cn'],
+                'outboundTag': 'direct'
+            }
+        ]
+    }
+    default_config['inbounds'] = [
+        {
+            'tag': 'socks-in',
+            'port': 8089,
+            'listen': '::',
+            'protocol': 'socks',
+            'settings': {'auth': 'noauth', 'udp': True, 'ip': '127.0.0.1'}
+        },
+        {
+            'tag': 'http-in',
+            'port': 8090,
+            'listen': '::',
+            'protocol': 'http'
+        }
+    ]
+    default_config['outbounds'] = [
+        {
+            'protocol': 'freedom',
+            'tag': 'direct',
+            'settings': {'domainStrategy': 'UseIP'}
+        }
+    ]
+    vnext = {
+        'address': vmess_config['add'],
+        'port': vmess_config['port'],
+        'users': [
+            {
+                'email': 'user@v2ray.com',
+                'id': vmess_config['id'],
+                'alterId': vmess_config['aid'],
+                'security': 'auto'
+            }
+        ]
+    }
+    vmess = {
+        'protocol': 'vmess',
+        'settings': {'vnext': [
+            {
+                'address': vmess_config['add'],
+                'port': vmess_config['port'],
+                'users': [
+                     {
+                         'email': 'user@v2ray.com',
+                         'id': vmess_config['id'],
+                         'alterId': vmess_config['aid'],
+                         'security': 'auto'
+                     }
+                     ]
+            }
+        ]},
+        'mux': {'enabled': True},
+        'tag': 'proxy'
+    }
+    if vmess_config['net'] == 'ws':
+        streamSettings = {
+            'network': vmess_config['net'],
+            'wsSettings': {
+                'connectionReuse': True,
+                'path': vmess_config['path'],
+                'headers': {'Host': vmess_config['host']}
+            }
+        }
+        vmess['streamSettings'] = streamSettings
+    default_config['outbounds'].insert(0, vmess)
+    # print(json.dumps(default_config, indent=4, ensure_ascii=False))
+    return default_config
 
 def parseLink(link, local_port=None):
     if re.match(r'^ss://', link, re.I):
         return parseSS(link)
     if re.match(r'^ssr://', link, re.I):
         return parseSSR(link, local_port)
+    if re.match(r'^vmess://', link, re.I):
+        return parse_vmess(link, local_port)
     raise Exception('Not Supported Link')
+
 
 if __name__ == '__main__':
     # print("Hello World")
