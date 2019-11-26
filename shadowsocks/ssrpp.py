@@ -914,6 +914,8 @@ def write_ssr_data_to_file(data, filename, url):
     with open(filename, 'w', encoding='utf-8') as f:
         if re.search(r'\s+ssr?:', decode_data):
             decode_data=re.sub(r'\s+(ssr?:)', r'\n\1', decode_data)
+        if re.search(r'\n+', decode_data):
+            decode_data=re.sub(r'\n+', r'\n', decode_data)
         f.write(decode_data)
         if url is not None:
             f.write(url)
