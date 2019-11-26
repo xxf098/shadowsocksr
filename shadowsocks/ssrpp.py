@@ -826,6 +826,7 @@ def preview_vmess(filename):
     data = ssrlink.addPadding(data)
     result = base64.b64decode(data).decode('utf-8')
     vmess_config = json.loads(result)
+    vmess_config['id'] = '******'
     display_data = json.dumps(vmess_config, indent=4, ensure_ascii=False)
     return display_data.split('\n')
 
