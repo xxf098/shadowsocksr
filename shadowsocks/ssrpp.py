@@ -23,10 +23,12 @@ import ssrlink
 import socket
 from struct import pack, unpack
 from collections import deque
+import json
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
 DEFAULT_SSR_DIR = f'{BASE_DIR}/json/'
+V2RAY_DIR= f'{str(Path.home())}/v2ray/'
 SSR_LINK_REGEX = '^ssr?://[a-zA-Z0-9]+'
 VMESS_LINK_REGEX = '^vmess://[a-zA-Z0-9\n]+'
 JSON_FILE_REGEX = '.*\.json$'
@@ -1098,9 +1100,10 @@ def build_cmd_vmess(vmess_name, ssr_dir):
         lines = f.readlines()
         vmess_link = lines[line_num - 1].rstrip()
         if re.match(VMESS_LINK_REGEX, vmess_link):
-            print(vmess_link)
-    return None
-    
+            vmess_config = ssrlink.parseLink(vmess_link)
+            with open(f'{V2RAY_DIR}config.json', 'w') as f:
+                f.write(json.dumps(vmess_config, indent=4, ensure_ascii=False))
+    return f'{V2RAY_DIR}v2ray --config={V2RAY_DIR}config.json -format=json'
 
 def match_multiple_links_filename(filename):
     match = re.match('.*\._(\d+)_\.ssr?$', filename)

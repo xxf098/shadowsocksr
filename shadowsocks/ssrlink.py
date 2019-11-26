@@ -135,7 +135,7 @@ def parse_vmess(vmess_link, local_port):
     result = base64.b64decode(data).decode('utf-8')
     vmess_config = json.loads(result)
     default_config = {}
-    default_config['log'] = {'access': '', 'error': '', 'loglevel': ''}
+    default_config['log'] = {'access': '', 'error': '', 'loglevel': 'error'}
     default_config['dns'] = {'servers': ['1.0.0.1', 'localhost']}
     default_config['routing'] = {
         'domainStrategy': 'IPIfNonMatch',
