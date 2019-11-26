@@ -176,30 +176,18 @@ def parse_vmess(vmess_link, local_port):
             'settings': {'domainStrategy': 'UseIP'}
         }
     ]
-    vnext = {
-        'address': vmess_config['add'],
-        'port': vmess_config['port'],
-        'users': [
-            {
-                'email': 'user@v2ray.com',
-                'id': vmess_config['id'],
-                'alterId': vmess_config['aid'],
-                'security': 'auto'
-            }
-        ]
-    }
     vmess = {
         'protocol': 'vmess',
         'description': vmess_config.get('ps', ''),
         'settings': {'vnext': [
             {
                 'address': vmess_config['add'],
-                'port': vmess_config['port'],
+                'port': int(vmess_config['port']),
                 'users': [
                      {
                          'email': 'user@v2ray.com',
                          'id': vmess_config['id'],
-                         'alterId': vmess_config['aid'],
+                         'alterId': int(vmess_config['aid']),
                          'security': 'auto'
                      }
                      ]
@@ -211,12 +199,10 @@ def parse_vmess(vmess_link, local_port):
     if vmess_config['net'] == 'ws':
         streamSettings = {
             'network': vmess_config['net'],
-            'wsSettings': {
-                'connectionReuse': True,
-                'path': vmess_config['path'],
-                'headers': {'Host': vmess_config['host']}
-            }
+            'wsSettings': { 'connectionReuse': True, 'path': vmess_config['path'] }
         }
+        if vmess_config['host']:
+            streamSettings['wsSettings']['headers'] = {'Host': vmess_config['host']}
         vmess['streamSettings'] = streamSettings
     default_config['outbounds'].insert(0, vmess)
     # print(json.dumps(default_config, indent=4, ensure_ascii=False))
