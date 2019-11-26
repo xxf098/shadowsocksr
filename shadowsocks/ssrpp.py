@@ -817,7 +817,17 @@ def preview_ssr(filename, is_get_link=False):
     # print(filepath)
 
 def preview_vmess(filename):
-    return [f'#TODO: {filename}']
+    ssr_dir = DEFAULT_SSR_DIR
+    vmess_link = get_vmess_link(filename, ssr_dir)
+    if not vmess_link:
+        return ['Not Found']
+    vmess_match = re.match(r'^vmess://([\w+]+=*)', vmess_link)
+    data = vmess_match.group(1)
+    data = ssrlink.addPadding(data)
+    result = base64.b64decode(data).decode('utf-8')
+    vmess_config = json.loads(result)
+    display_data = json.dumps(vmess_config, indent=4, ensure_ascii=False)
+    return display_data.split('\n')
 
 def replace_hide_field(x):
     if re.match('\s+"server_port":\s+\d+,?$', x, re.I):
@@ -1089,6 +1099,15 @@ def build_cmd(ssr_name, ssr_dir):
     return f'{cmd} --ssr-name=\'{ssr_name}\''
 
 def build_cmd_vmess(vmess_name, ssr_dir):
+    vmess_link = get_vmess_link(vmess_name, ssr_dir)
+    if not vmess_link:
+        return ''
+    vmess_config = ssrlink.parseLink(vmess_link)
+    with open(f'{V2RAY_DIR}config.json', 'w') as f:
+        f.write(json.dumps(vmess_config, indent=4, ensure_ascii=False))
+    return f'{V2RAY_DIR}v2ray --config={V2RAY_DIR}config.json -format=json' 
+
+def get_vmess_link(vmess_name, ssr_dir):
     match = re.match('.*\._(\d+)_\.vmess?$', vmess_name)
     if not match:
         return ''
@@ -1098,12 +1117,8 @@ def build_cmd_vmess(vmess_name, ssr_dir):
     vmess_path = f'{ssr_dir}{vmess_name}'
     with open(vmess_path) as f:
         lines = f.readlines()
-        vmess_link = lines[line_num - 1].rstrip()
-        if re.match(VMESS_LINK_REGEX, vmess_link):
-            vmess_config = ssrlink.parseLink(vmess_link)
-            with open(f'{V2RAY_DIR}config.json', 'w') as f:
-                f.write(json.dumps(vmess_config, indent=4, ensure_ascii=False))
-    return f'{V2RAY_DIR}v2ray --config={V2RAY_DIR}config.json -format=json'
+        lines = [line for line in lines if re.match(VMESS_LINK_REGEX, line.rstrip())]
+        return lines[line_num - 1]
 
 def match_multiple_links_filename(filename):
     match = re.match('.*\._(\d+)_\.ssr?$', filename)
