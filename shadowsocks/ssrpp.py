@@ -1052,6 +1052,7 @@ async def get_ssrname(ssr):
                 return []
             if length == 1:
                 ssr_names.append(filename)
+                ssr_names_cache[filename] = ssr_names
                 return ssr_names
             name_parts = filename.split('.')
             name_parts.insert(-1, '0')
