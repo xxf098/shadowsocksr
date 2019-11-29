@@ -24,6 +24,8 @@ import socket
 from struct import pack, unpack
 from collections import deque
 import json
+import time
+import concurrent.futures
 
 FZF = 'fzf'
 BASE_DIR = f'{str(Path.home())}/shadowsocksr'
@@ -541,6 +543,7 @@ class MultiPanelDisplay:
         self.rebuild()
         key_bindings = create_key_bindings(self)
         self.key_processor = KeyProcessor(key_bindings)
+        self.app = None
 
     def _setup_curses(self):
         self.screen.keypad(True)
@@ -573,15 +576,22 @@ class MultiPanelDisplay:
 
     def draw(self):
         self.screen.clear()
-        k = None
         while not self.stop:
             # self.screen.erase()
-            for panel in self.panels:
-                panel.draw()
-            self.statusbar.draw()
-            self.handle_key()
-            self.screen.refresh()
+            self.redraw()
         return self.selected_server
+    
+    def pre_draw(self, app=None):
+        self.app = app
+        self.rebuild()
+        self.screen.clear()
+
+    def redraw(self):
+        for panel in self.panels:
+            panel.draw()
+        self.statusbar.draw()
+        self.handle_key()
+        self.screen.refresh()
 
     def get_status(self):
         if (len(self.panels) != 3):
@@ -727,7 +737,7 @@ def create_key_bindings(display):
     @handle_panel(['left', 'middle'])
     def delete_item(panel):
         panel.handle_delete()
-    
+
     @kb.add('c-y')
     @handle_panel(['left', 'middle'])
     def copy_item(panel):
@@ -736,9 +746,91 @@ def create_key_bindings(display):
     @kb.add('enter')
     def enter(event):
         display.stop = True
-        display.selected_server = display.panels[1].get_selectd()
+        result = display.panels[1].get_selectd()
+        display.selected_server = result
+        display.app.exit(result)
 
     return kb
+
+class Application:
+
+    def __init__(self, layout):
+        self._invalidated = False
+        self.loop = None
+        self.future = None
+        self._is_running = False
+        self.layout = layout
+
+    def run(self):
+        loop = asyncio.get_event_loop()
+        coro = self.run_async()
+        result = loop.run_until_complete(coro)
+        return result
+
+    async def run_async(self):
+        self._is_running = True
+        loop = asyncio.get_event_loop()
+        f = loop.create_future()
+        # set_result
+        # set_exception
+        self.future = f
+        self.loop = loop
+        self._pre_draw()
+        self._redraw()
+        try:
+            result = await f
+        finally:
+            self._is_running = False
+        return result
+
+    def invalidate(self):
+        if self._invalidated:
+            return
+        else:
+            self._invalidated = True
+        def redraw():
+            self._invalidated = False
+            self._redraw()
+        def schedule_redraw():
+            self.call_soon_threadsafe(redraw, max_postpone_time=0.01)
+        schedule_redraw()
+    
+    def _pre_draw(self):
+        self.layout.pre_draw(app=self)
+
+    def _redraw(self):
+        if not self._is_running:
+            return
+        self.layout.redraw()
+        self.invalidate()
+
+    def call_soon_threadsafe(self, func, max_postpone_time=None):
+        loop = asyncio.get_event_loop()
+        if max_postpone_time is None:
+            loop.call_soon_threadsafe(func)
+        max_postpone_until = time.time() + max_postpone_time
+        def schedule():
+            if not loop._ready:
+                func()
+                return
+
+            if time.time() > max_postpone_until:
+                func()
+                return
+            loop.call_soon_threadsafe(schedule)
+        loop.call_soon_threadsafe(schedule)
+    
+    def exit(self, result=None, exception=None):
+        if self.future is None:
+            raise Exception('Application is not runing')
+        
+        if self.future.done():
+            raise Exception('Return value already set')
+        
+        if exception is not None:
+            self.future.set_exception()
+        else:
+            self.future.set_result(result)
 
 # TODO: pager
 def main():
@@ -1075,8 +1167,10 @@ def select_ssr_names():
         height,width = stdscr.getmaxyx()
         screen = curses.newwin(height-1, width, 0, 0)
         display = MultiPanelDisplay(screen)
-        display.rebuild()
-        result = display.draw()
+        # display.rebuild()
+        # result = display.draw()
+        app = Application(layout=display)
+        result = app.run()
         return result
     except KeyboardInterrupt:
         exit(0)
