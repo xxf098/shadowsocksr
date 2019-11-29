@@ -911,6 +911,8 @@ def write_ssr_data_to_file(data, filename, url):
     decode_data = base64.b64decode(data)
     decode_data = decode_data.decode('utf-8')
     extension = 'vmess' if re.match(r'^vmess://', decode_data) else 'ssr'
+    if not re.match(r'(^ssr?://|^vmess://)', decode_data):
+        raise Exception('Not Validated Data')
     filename = f'{filename}.{extension}'
     with open(filename, 'w', encoding='utf-8') as f:
         if re.search(r'\s+ssr?:', decode_data):
