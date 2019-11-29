@@ -1031,13 +1031,17 @@ def get_ssrnames(ssrs):
         ssr_name = basename(ssrs[0])
         if ssr_name in ssr_names_cache:
             return ssr_names_cache[ssr_name]
-    tasks = [get_ssrname(x) for x in ssrs]
-    loop = asyncio.get_event_loop()
-    ssr_names = loop.run_until_complete(asyncio.gather(*tasks))
+    # tasks = [get_ssrname(x) for x in ssrs]
+    # loop = asyncio.get_event_loop()
+    # ssr_names = loop.run_until_complete(asyncio.gather(*tasks))
+    executor = concurrent.futures.ThreadPoolExecutor()
+    ssr_names = []
+    for ssr_name in executor.map(get_ssrname, ssrs):
+        ssr_names.append(ssr_name)
     ssr_names = reduce(operator.concat, ssr_names)
     return ssr_names
 
-async def get_ssrname(ssr):
+def get_ssrname(ssr):
     ssr_names = []
     filename = basename(ssr)
     if filename in ssr_names_cache:
