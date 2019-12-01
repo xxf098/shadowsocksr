@@ -752,6 +752,7 @@ def create_key_bindings(display):
 
     return kb
 
+# TODO: run_in_terminal
 class Application:
 
     def __init__(self, layout):
@@ -768,6 +769,8 @@ class Application:
         return result
 
     async def run_async(self):
+        if self._is_running:
+            raise Exception('Application is already running.')
         self._is_running = True
         loop = asyncio.get_event_loop()
         f = loop.create_future()
