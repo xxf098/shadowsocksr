@@ -8,7 +8,7 @@ Feature
 * Asyncio based eventloop
 * Query DNS on startup
 * Support test multiple ssr configs
-* A command line ssr client ssrpp.py
+* A command line ssr|v2ray client with ssrpp.py
 * Eventloop based http proxy server by forward to shadowsocks with ssrforward.py
 
 SSR Client
@@ -25,11 +25,11 @@ To run from a config file:
 
     python3 ./shadowsocks/local.py -L /path/to/config.json
 
-Start ssr client
+Start ssr|v2ary client
 
     ./shadowsocks/ssrpp.py
 
-Add ssr subscription
+Add ssr|v2ray subscription
 
     ./shadowsocks/ssrpp.py --sub https://subscription.ssr.com
     ./shadowsocks/ssrpp.py --sub /path/to/ssrlinks.txt
