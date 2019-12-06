@@ -194,7 +194,8 @@ def parse_vmess(vmess_link, local_port):
             }
         ]},
         'mux': {'enabled': True},
-        'tag': 'proxy'
+        'tag': 'proxy',
+        'streamSettings': {}
     }
     if vmess_config['net'] == 'ws':
         streamSettings = {
@@ -204,6 +205,9 @@ def parse_vmess(vmess_link, local_port):
         if vmess_config['host']:
             streamSettings['wsSettings']['headers'] = {'Host': vmess_config['host']}
         vmess['streamSettings'] = streamSettings
+    if vmess_config['tls'] == 'tls':
+        vmess['streamSettings']['security'] = 'tls'
+        vmess['streamSettings']['tlsSettings'] = {'allowInsecure': True}
     default_config['outbounds'].insert(0, vmess)
     # print(json.dumps(default_config, indent=4, ensure_ascii=False))
     return default_config
@@ -222,12 +226,14 @@ if __name__ == '__main__':
     # print("Hello World")
     if len(sys.argv) != 2:
         exit()
-    ssrLink = sys.argv[1]
+    base64_link = sys.argv[1]
     config = {}
-    if re.match(r'^ss://', ssrLink, re.I):
-        config = parseSS(ssrLink)
-    elif re.match(r'^ssr://', ssrLink, re.I):
-        config = parseSSR(ssrLink)
+    if re.match(r'^ss://', base64_link, re.I):
+        config = parseSS(base64_link)
+    elif re.match(r'^ssr://', base64_link, re.I):
+        config = parseSSR(base64_link)
+    elif re.match(r'^vmess://', base64_link, re.I):
+        config = parse_vmess(base64_link, None)
     else:
         raise Exception('Not Supported Link')
     print(json.dumps(config, indent=4, ensure_ascii=False))
