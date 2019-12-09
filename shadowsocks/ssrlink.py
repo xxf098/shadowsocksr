@@ -133,8 +133,9 @@ def parse_vmess(vmess_link, local_port):
     if not vmess_match:
         return None
     data = vmess_match.group(1)
-    data = addPadding(data)
-    result = base64.b64decode(data).decode('utf-8')
+    # data = addPadding(data)
+    # result = base64.b64decode(data).decode('utf-8')
+    result = DecodeUrlSafeBase64(data)
     vmess_config = json.loads(result)
     default_config = {}
     default_config['log'] = {'access': '', 'error': '', 'loglevel': 'error'}
