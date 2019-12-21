@@ -916,10 +916,9 @@ def preview_vmess(filename):
     vmess_link = get_vmess_link(filename, ssr_dir)
     if not vmess_link:
         return ['Not Found']
-    vmess_match = re.match(r'^vmess://([\w+]+=*)', vmess_link)
+    vmess_match = re.match(r'^vmess://([A-Za-z0-9_/+-]+=*)', vmess_link)
     data = vmess_match.group(1)
-    data = ssrlink.addPadding(data)
-    result = base64.b64decode(data).decode('utf-8')
+    result = ssrlink.DecodeUrlSafeBase64(data)
     vmess_config = json.loads(result)
     vmess_config['id'] = '******'
     display_data = json.dumps(vmess_config, indent=4, ensure_ascii=False)
