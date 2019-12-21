@@ -129,7 +129,7 @@ def parseSS(ssURL):
 
 
 def parse_vmess(vmess_link, local_port):
-    vmess_match = re.match(r'^vmess://([\w+]+=*)', vmess_link)
+    vmess_match = re.match(r'^vmess://([A-Za-z0-9_/+-]+=*)', vmess_link)
     if not vmess_match:
         return None
     data = vmess_match.group(1)
