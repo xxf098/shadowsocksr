@@ -139,7 +139,7 @@ def parse_vmess(vmess_link, local_port):
     vmess_config = json.loads(result)
     default_config = {}
     default_config['log'] = {'access': '', 'error': '', 'loglevel': 'error'}
-    default_config['dns'] = {'servers': ['1.0.0.1', 'localhost']}
+    default_config['dns'] = {'servers': ['223.5.5.5', '1.1.1.1', '1.0.0.1', 'localhost']}
     default_config['routing'] = {
         'domainStrategy': 'IPIfNonMatch',
         'rules': [
@@ -186,7 +186,7 @@ def parse_vmess(vmess_link, local_port):
                 'port': int(vmess_config['port']),
                 'users': [
                      {
-                         'email': 'user@v2ray.com',
+                         'email': 'email@gmail.com',
                          'id': vmess_config['id'],
                          'alterId': int(vmess_config['aid']),
                          'security': 'auto'
