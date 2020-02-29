@@ -942,7 +942,7 @@ def remove_ssr(filename):
     filepath = f'{ssr_dir}{filename}'
     if re.match(JSON_FILE_REGEX, filename) and isfile(filename):
         os.remove(filepath)
-    if re.match(SSR_FILE_REGEX, filename):
+    if re.match(SSR_FILE_REGEX, filename) or re.match(VMESS_FILE_REGEX, filename):
         lines = []
         if isfile(filepath):
             with open(filepath) as f:
@@ -1227,7 +1227,7 @@ def get_vmess_link(vmess_name, ssr_dir):
         return lines[line_num - 1]
 
 def match_multiple_links_filename(filename):
-    match = re.match('.*\._(\d+)_\.ssr?$', filename)
+    match = re.match('.*\._(\d+)_\.ssr?$', filename) or re.match('.*\._(\d+)_\.vmess?$', filename) 
     return match
 
 # TODO: confirm handle all key fuzzy search
