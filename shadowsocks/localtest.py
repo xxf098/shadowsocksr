@@ -142,6 +142,6 @@ def main():
         for link, result in zip(chunk, results):
              print(f"{OKGREEN if result else FAIL}{link}:{result}{ENDC}")
 
-
+#TODO: support multiple links
 if __name__ == '__main__':
     main()

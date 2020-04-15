@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
 from shadowsocks import shell, daemon, eventloop, tcprelay, udprelay, asyncdns
 
-
+# copy feature from v2ray by read v2ray code
 def main():
     shell.check_python()
 

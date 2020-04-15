@@ -140,21 +140,21 @@ def parse_vmess(vmess_link, local_port):
     default_config = {}
     default_config['log'] = {'access': '', 'error': '', 'loglevel': 'error'}
     default_config['dns'] = {'servers': ['223.5.5.5', '1.1.1.1', '1.0.0.1', 'localhost']}
-    default_config['routing'] = {
-        'domainStrategy': 'IPIfNonMatch',
-        'rules': [
-            {
-                'type': 'field',
-                'ip': ['geoip:private', 'geoip:cn'],
-                'outboundTag': 'direct'
-            },
-            {
-                'type': 'field',
-                'domain': ['geosite:cn'],
-                'outboundTag': 'direct'
-            }
-        ]
-    }
+    # default_config['routing'] = {
+    #     'domainStrategy': 'IPIfNonMatch',
+    #     'rules': [
+    #         {
+    #             'type': 'field',
+    #             'ip': ['geoip:private', 'geoip:cn'],
+    #             'outboundTag': 'direct'
+    #         },
+    #         {
+    #             'type': 'field',
+    #             'domain': ['geosite:cn'],
+    #             'outboundTag': 'direct'
+    #         }
+    #     ]
+    # }
     default_config['inbounds'] = [
         {
             'tag': 'socks-in',

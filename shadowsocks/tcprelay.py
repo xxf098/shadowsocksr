@@ -228,12 +228,15 @@ class TCPRelayHandler(object):
         self._udp_send_pack_id = 0
         self._udpv6_send_pack_id = 0
 
+        # local_sock: broswer connect to ssr
         local_sock.setblocking(False)
         local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self._local_sock_fd = local_sock.fileno()
         fd_to_handlers[self._local_sock_fd] = self
+        # print(f"===235=add_local_sock: {local_sock}") mode 9
         loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR, self._server)
         self._stage = STAGE_INIT
+        self._stage1 = STAGE_INIT
 
     def __hash__(self):
         # default __hash__ is id / 16
@@ -548,6 +551,7 @@ class TCPRelayHandler(object):
                 remote_sock = \
                     self._create_remote_socket(self._chosen_server[0],
                                                self._chosen_server[1])
+                # print("===553=remote_sock:{remote_sock}")
                 self._loop.add(remote_sock, eventloop.POLL_ERR, self._server)
                 data = b''.join(self._data_to_write_to_remote)
                 l = len(data)
@@ -776,6 +780,7 @@ class TCPRelayHandler(object):
                         # else do connect
                         remote_sock = self._create_remote_socket(remote_addr,
                                                                  remote_port)
+                        # udp event
                         if self._remote_udp:
                             self._loop.add(remote_sock,
                                            eventloop.POLL_IN,
@@ -797,6 +802,9 @@ class TCPRelayHandler(object):
                             common.connect_log('TCP connecting %s(%s):%d from %s:%d by user %d' %
                                 (common.to_str(self._remote_address[0]), common.to_str(remote_addr), remote_port, addr, port, self._user_id))
 
+                            # print(f"===803=remote_sock:{self._remote_sock}")
+                            # print(f"===803=local_sock:{self._local_sock}")
+                            # ->> connect to remote socket after resolve dns 
                             self._loop.add(remote_sock,
                                        eventloop.POLL_ERR | eventloop.POLL_OUT,
                                        self._server)
@@ -930,6 +938,7 @@ class TCPRelayHandler(object):
                 (not is_local and self._stage == STAGE_INIT):
             self._handle_stage_addr(ogn_data, data)
 
+    # _handle_stage_addr(STAGE_ADDR) _dns_resolver.resolve _handle_dns_resolved(STAGE_CONNECTING) _handle_stage_connecting
     def _on_remote_read(self, is_remote_sock):
         # handle all remote read events
         data = None
@@ -1224,6 +1233,7 @@ class TCPRelay(object):
         if len(addrs) == 0:
             raise Exception("can't get addrinfo for %s:%d" %
                             (listen_addr, listen_port))
+        # 127.0.0.1 8088
         af, socktype, proto, canonname, sa = addrs[0]
         server_socket = socket.socket(af, socktype, proto)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -1446,6 +1456,7 @@ class TCPRelay(object):
                 handler = self._fd_to_handlers.get(fd, None)
                 if handler:
                     handle = handler.handle_event(sock, fd, event)
+                    # http://www.wellho.net/resources/ex.php?item=y303/browser.py
                 else:
                     logging.warn('unknown fd')
                     handle = True

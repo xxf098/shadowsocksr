@@ -6,6 +6,7 @@ from collections import namedtuple
 from struct import pack, unpack
 import datetime
 import select
+version=b'1'
 
 logger = logging.getLogger('ssrforward')
 CRLF, COLON, SP = b'\r\n', b':', b' '
@@ -63,7 +64,7 @@ class Proxy(object):
             elif self.request.url:
                 host, port = self.request.url.hostname, self.request.url.port if self.request.url.port else 80
             else:
-                raise Exception('Invalid request\n%s' % request.raw)
+                raise Exception('Invalid request\n%s' % self.request.raw)
 
         self.server = Socks5Server(*self.sock5_addr)
         try:
