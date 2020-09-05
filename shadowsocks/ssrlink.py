@@ -170,13 +170,13 @@ def parse_vmess(vmess_link, local_port):
             'protocol': 'http'
         }
     ]
-    default_config['outbounds'] = [
-        {
-            'protocol': 'freedom',
-            'tag': 'direct',
-            'settings': {'domainStrategy': 'UseIP'}
-        }
-    ]
+    # default_config['outbounds'] = [
+    #     {
+    #         'protocol': 'freedom',
+    #         'tag': 'direct',
+    #         'settings': {'domainStrategy': 'UseIP'}
+    #     }
+    # ]
     vmess = {
         'protocol': 'vmess',
         'description': vmess_config.get('ps', ''),
@@ -194,7 +194,7 @@ def parse_vmess(vmess_link, local_port):
                      ]
             }
         ]},
-        'mux': {'enabled': True},
+        'mux': {'enabled': True, 'concurrency': 16},
         'tag': 'proxy',
         'streamSettings': {}
     }
