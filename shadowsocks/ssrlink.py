@@ -177,6 +177,7 @@ def parse_vmess(vmess_link, local_port):
     #         'settings': {'domainStrategy': 'UseIP'}
     #     }
     # ]
+    default_config['outbounds'] = []
     vmess = {
         'protocol': 'vmess',
         'description': vmess_config.get('ps', ''),
