@@ -772,13 +772,13 @@ class TCPRelayHandler(object):
             self.destroy()
             return
         if self._stage == STAGE_INIT:
-            self._handle_negotiate(data)
+            self._handle_http_negotiate(data)
         if self._stage == STAGE_NEGOTIATE_0:
             pass
         if self._stage == STAGE_STREAM:
             self._write_to_sock(data, self._remote_sock)
 
-    def _handle_negotiate(self, data):
+    def _handle_http_negotiate(self, data):
         self._stage = STAGE_NEGOTIATE_0
         self.request.parse(data)
         if self.request.state == HttpParser.states.COMPLETE:
