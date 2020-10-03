@@ -273,6 +273,7 @@ def get_config(is_local):
     config['connect_verbose_info'] = config.get('connect_verbose_info', 0)
     config['local_address'] = to_str(config.get('local_address', '127.0.0.1'))
     config['local_port'] = config.get('local_port', 8088)
+    config['local_type'] = config.get('local_type', 'socks5')
     config['test_connection'] = config.get('test_connection', False)
     if is_local:
         if config.get('server', None) is None:
