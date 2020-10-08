@@ -1165,6 +1165,7 @@ def get_ssrname(ssr):
 
 def select_ssr_names():
     try:
+        checkContext()
         stdscr = curses.initscr()
         height,width = stdscr.getmaxyx()
         screen = curses.newwin(height-1, width, 0, 0)
@@ -1181,6 +1182,12 @@ def select_ssr_names():
         curses.echo()
         curses.nocbreak()
         curses.endwin()
+
+def checkContext() :
+    curses.setupterm()
+    colorNum = curses.tigetnum("colors")
+    if colorNum != 256:
+        raise Exception('terminal not supports 256 color')
 
 def build_cmd(ssr_name, ssr_dir):
     cmd = f'python3 {BASE_DIR}/shadowsocks/local.py'
