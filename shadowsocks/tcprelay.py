@@ -138,6 +138,7 @@ class TCPRelayHandler(object):
         self._remotev6_sock_fd = None
         self._remote_udp = False
         self._config = config
+        self._local_type = config['local_type']
         self._dns_resolver = dns_resolver
         self._add_ref = 0
         if not self._create_encryptor(config):
@@ -588,9 +589,44 @@ class TCPRelayHandler(object):
         if head_type == 3:
             return 4 + common.ord(buf[1])
         return def_value
+    
+    # handle http proxy
+    def _handle_http_connection(self, data):
+        self._stage = STAGE_CONNECTING
+        req = data.split(b'\r\n')
+        if len(req) < 4:
+            self.destroy()
+            return
+        head = req[0].split(b' ')
+        if head[0] == b'CONNECT':
+            uri = head[1].split(b':')
+            host = uri[0]
+            port = int(uri[1])
+            self._remote_address = (common.to_str(host), port)
+            self._remote_udp = False
+            self._update_stream(STREAM_UP, WAIT_STATUS_WRITING)
+            self._stage = STAGE_DNS
+            if self._is_local:
+                self._write_to_sock((b'HTTP/1.1 200 Connection established\r\n\r\n'), self._local_sock)
+                # fake_data = b'\x03\x12zhuanlan.zhihu.com\x01\xbb'
+                data = b'\x03' + chr(len(host)).encode() + host + b'\x01\xbb'
+                head_len = self._get_head_size(data, 30)
+                self._obfs.obfs.server_info.head_len = head_len
+                self._protocol.obfs.server_info.head_len = head_len
+                if self._encryptor is not None:
+                    data = self._protocol.client_pre_encrypt(data)
+                    data_to_send = self._encryptor.encrypt(data)
+                    data_to_send = self._obfs.client_encode(data_to_send)
+                if data_to_send:
+                    self._data_to_write_to_remote.append(data_to_send)
+                # notice here may go into _handle_dns_resolved directly
+                self._dns_resolver.resolve(self._chosen_server[0],
+                                           self._handle_dns_resolved)
+
 
     def _handle_stage_addr(self, ogn_data, data):
         try:
+            # parse local data
             if self._is_local:
                 cmd = common.ord(data[1])
                 if cmd == CMD_UDP_ASSOCIATE:
@@ -930,8 +966,11 @@ class TCPRelayHandler(object):
             self._write_to_sock(data, self._remote_sock)
         elif is_local and self._stage == STAGE_INIT:
             # TODO check auth method
-            self._write_to_sock(b'\x05\00', self._local_sock)
-            self._stage = STAGE_ADDR
+            if self._local_type == b'http':
+                self._handle_http_connection(data)
+            else:
+                self._write_to_sock(b'\x05\00', self._local_sock)
+                self._stage = STAGE_ADDR
         elif self._stage == STAGE_CONNECTING:
             self._handle_stage_connecting(data)
         elif (is_local and self._stage == STAGE_ADDR) or \
@@ -1078,6 +1117,7 @@ class TCPRelayHandler(object):
             elif event & eventloop.POLL_OUT:
                 handle = True
                 self._on_remote_write()
+        # handle local read write
         elif fd == self._local_sock_fd:
             if event & eventloop.POLL_ERR:
                 handle = True
