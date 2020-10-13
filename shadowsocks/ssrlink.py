@@ -195,7 +195,7 @@ def parse_vmess(vmess_link, local_port):
                      ]
             }
         ]},
-        'mux': {'enabled': True, 'concurrency': 16},
+        'mux': {'enabled': False, 'concurrency': -1},
         'tag': 'proxy',
         'streamSettings': {}
     }
