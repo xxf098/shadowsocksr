@@ -170,14 +170,13 @@ def parse_vmess(vmess_link, local_port):
             'protocol': 'http'
         }
     ]
-    # default_config['outbounds'] = [
-    #     {
-    #         'protocol': 'freedom',
-    #         'tag': 'direct',
-    #         'settings': {'domainStrategy': 'UseIP'}
-    #     }
-    # ]
-    default_config['outbounds'] = []
+    default_config['outbounds'] = [
+        {
+            'protocol': 'blackhole',
+            'settings': {},
+            'tag': 'block'
+        }
+    ]
     vmess = {
         'protocol': 'vmess',
         'description': vmess_config.get('ps', ''),
@@ -195,7 +194,7 @@ def parse_vmess(vmess_link, local_port):
                      ]
             }
         ]},
-        'mux': {'enabled': False, 'concurrency': -1},
+        'mux': {'enabled': True, 'concurrency': 16},
         'tag': 'proxy',
         'streamSettings': {}
     }
@@ -211,6 +210,18 @@ def parse_vmess(vmess_link, local_port):
         vmess['streamSettings']['security'] = 'tls'
         vmess['streamSettings']['tlsSettings'] = {'allowInsecure': True}
     default_config['outbounds'].insert(0, vmess)
+    default_config['routing'] = {
+        'domainStrategy': 'IPOnDemand',
+        'rules': [
+            {
+                'domain': [
+                    'def.dev-nano.com'
+                ],
+                'type': 'field',
+                'outboundTag': 'block'
+            }
+        ]
+    }
     # print(json.dumps(default_config, indent=4, ensure_ascii=False))
     return default_config
 
