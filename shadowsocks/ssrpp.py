@@ -846,6 +846,7 @@ def main():
         parser.add_argument('--update', default=None)
         parser.add_argument('--check', nargs='?', help='check port open')
         parser.add_argument('--name', default=None)
+        parser.add_argument('--lite', action='store_true')
         args = parser.parse_args()
         if args.preview:
             return preview_ssr(args.preview)
@@ -870,7 +871,7 @@ def main():
     selected_server = select_ssr_names()
     if selected_server is None:
         return
-    cmd = build_cmd(selected_server, ssr_dir)
+    cmd = build_cmd(selected_server, ssr_dir, args.lite)
     if cmd:
         os.system(cmd)
 
@@ -1189,7 +1190,7 @@ def checkContext() :
     if colorNum != 256:
         raise Exception('terminal not supports 256 color')
 
-def build_cmd(ssr_name, ssr_dir):
+def build_cmd(ssr_name, ssr_dir, is_lite):
     cmd = f'python3 {BASE_DIR}/shadowsocks/local.py'
     if re.match(JSON_FILE_REGEX, ssr_name):
         cmd = f'{cmd} -c {ssr_dir}{ssr_name}'
@@ -1208,7 +1209,10 @@ def build_cmd(ssr_name, ssr_dir):
                 if re.match(SSR_LINK_REGEX, ssr_link):
                     cmd = f'{cmd} -L {ssr_link}'
     if re.match(VMESS_FILE_REGEX, ssr_name):
-        return build_cmd_vmess(ssr_name, ssr_dir)
+        if is_lite:
+            return build_cmd_lite(ssr_name, ssr_dir)
+        else:
+            return build_cmd_vmess(ssr_name, ssr_dir)
     return f'{cmd} --ssr-name=\'{ssr_name}\''
 
 def build_cmd_vmess(vmess_name, ssr_dir):
@@ -1219,6 +1223,12 @@ def build_cmd_vmess(vmess_name, ssr_dir):
     with open(f'{V2RAY_DIR}config.json', 'w') as f:
         f.write(json.dumps(vmess_config, indent=4, ensure_ascii=False))
     return f'{V2RAY_DIR}v2ray --config={V2RAY_DIR}config.json -format=json' 
+
+def build_cmd_lite(vmess_name, ssr_dir):
+    vmess_link = get_vmess_link(vmess_name, ssr_dir)
+    if not vmess_link:
+        return ''
+    return f'{V2RAY_DIR}lite --port 8088 --link {vmess_link}' 
 
 def get_vmess_link(vmess_name, ssr_dir):
     match = re.match('.*\._(\d+)_\.vmess?$', vmess_name)
