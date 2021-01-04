@@ -4,6 +4,7 @@ import sys
 import re
 import base64
 import json
+from urllib.parse import urlparse
 
 __all__ = (
     'parseLink',
@@ -101,7 +102,7 @@ def parseSSR(link, local_port=None):
 
 
 def parseSS(ssURL):
-    UrlFinder = re.compile(r'^(?i)ss://([A-Za-z0-9+-/=_@:]+)(#(.+))?', re.I)
+    UrlFinder = re.compile(r'(?i)^ss://([A-Za-z0-9+-/=_@:]+)(#(.+))?', re.I)
     DetailsParser = re.compile(
         r'^((?P<method>.+):(?P<password>.*)@(?P<hostname>.+?):(?P<port>\\d+?))$', re.I)
     match = UrlFinder.match(ssURL)
@@ -110,7 +111,7 @@ def parseSS(ssURL):
     base64 = match.group(1)
     match = DetailsParser.match(base64)
     if not match:
-        raise Exception('Not Supported Link')
+        return parseSIP002(ssURL)
     protocol = 'origin'
     method = match.group('method')
     password = match.group('password')
@@ -127,6 +128,21 @@ def parseSS(ssURL):
     }
     return config
 
+def parseSIP002(ssURL):
+    result = urlparse(ssURL)
+    if result.scheme != "ss":
+        raise Exception('Not Supported Link')
+    protocol = 'origin'
+    group = ""
+    server = result.hostname
+    server_port = result.port
+    config = {
+        'protocol': protocol,
+        'server': server,
+        'server_port': server_port,
+        'group': group
+    }
+    return config
 
 def parse_vmess(vmess_link, local_port):
     vmess_match = re.match(r'^vmess://([A-Za-z0-9_/+-]+=*)', vmess_link)
@@ -165,7 +181,7 @@ def parse_vmess(vmess_link, local_port):
         },
         {
             'tag': 'http-in',
-            'port': 8090,
+            'port': 8089,
             'listen': '::',
             'protocol': 'http'
         }
@@ -201,10 +217,11 @@ def parse_vmess(vmess_link, local_port):
     if vmess_config['net'] == 'ws':
         streamSettings = {
             'network': vmess_config['net'],
-            'wsSettings': { 'connectionReuse': True, 'path': vmess_config['path'] }
+            'wsSettings': {'connectionReuse': True, 'path': vmess_config['path']}
         }
         if vmess_config['host']:
-            streamSettings['wsSettings']['headers'] = {'Host': vmess_config['host']}
+            streamSettings['wsSettings']['headers'] = {
+                'Host': vmess_config['host']}
         vmess['streamSettings'] = streamSettings
     if vmess_config['tls'] == 'tls':
         vmess['streamSettings']['security'] = 'tls'
@@ -224,6 +241,7 @@ def parse_vmess(vmess_link, local_port):
     }
     # print(json.dumps(default_config, indent=4, ensure_ascii=False))
     return default_config
+
 
 def parseLink(link, local_port=None):
     if re.match(r'^ss://', link, re.I):
