@@ -33,9 +33,11 @@ DEFAULT_SSR_DIR = f'{BASE_DIR}/json/'
 V2RAY_DIR= f'{str(Path.home())}/v2ray/'
 SSR_LINK_REGEX = '^ssr?://[a-zA-Z0-9]+'
 VMESS_LINK_REGEX = '^vmess://[a-zA-Z0-9\n]+'
+SS_LINK_REGEX = '^ss://.+'
 JSON_FILE_REGEX = '.*\.json$'
 SSR_FILE_REGEX = '.*\.ssr$'
 VMESS_FILE_REGEX = '.*\.vmess$'
+SS_FILE_REGEX = '.*\.ss$'
 DEFAULT_PROXY = 'https://127.0.0.1:8087'
 
 FG_COLORS = {
@@ -382,7 +384,7 @@ class LeftPanelDispaly(SinglePanelDispaly):
         ssr_name = self.lines[self.highlight_index]
         if re.match(JSON_FILE_REGEX, ssr_name):
             return [ssr_name]
-        if re.match(SSR_FILE_REGEX, ssr_name) or re.match(VMESS_FILE_REGEX, ssr_name):
+        if re.match(SSR_FILE_REGEX, ssr_name) or re.match(VMESS_FILE_REGEX, ssr_name) or  re.match(SS_FILE_REGEX, ssr_name):
             ssr_name = f'{self.parent.ssr_dir}/{ssr_name}'
             return get_ssrnames([ssr_name])
         return []
@@ -900,7 +902,7 @@ def preview_ssr(filename, is_get_link=False):
         result = [replace_hide_field(x) for x in lines]
         ssr_cache[origin_filename] = result
         return result
-    if re.match(SSR_FILE_REGEX, filename):
+    if re.match(SSR_FILE_REGEX, filename) or re.match(SS_FILE_REGEX, filename):
         line_num = 0 if not multiple_match else int(multiple_match.group(1))
         ssr_link = lines[line_num - 1].rstrip()
         #TODO: replce with ssrlink
@@ -1112,7 +1114,7 @@ def get_path_by_time(dir):
     with os.scandir(dir) as it:
         ssrs = [(entry.path, entry.stat().st_mtime) for entry in it \
             if entry.is_file() \
-            if re.match('.*\.(ssr|json|vmess)$', entry.name) \
+            if re.match('.*\.(ssr|json|vmess|ss)$', entry.name) \
             if os.stat(entry.path).st_size > 0]
         ssrs.sort(key=lambda x: x[1], reverse=True)
         ssrs = [x[0] for x in ssrs]
@@ -1143,7 +1145,7 @@ def get_ssrname(ssr):
         return ssr_names_cache[filename]
     if re.match(JSON_FILE_REGEX, ssr):
         ssr_names.append(filename)
-    if re.match(SSR_FILE_REGEX, ssr) or re.match(VMESS_FILE_REGEX, ssr):
+    if re.match(SSR_FILE_REGEX, ssr) or re.match(VMESS_FILE_REGEX, ssr) or re.match(SS_FILE_REGEX, ssr):
         with open(ssr) as f:
             lines = f.readlines()
             length = len(lines)
@@ -1157,7 +1159,7 @@ def get_ssrname(ssr):
             name_parts.insert(-1, '0')
             new_names = []
             for line in lines:
-                if re.match(SSR_LINK_REGEX, line) or re.match(VMESS_LINK_REGEX, line):
+                if re.match(SSR_LINK_REGEX, line) or re.match(VMESS_LINK_REGEX, line) or re.match(SS_LINK_REGEX, line):
                     name_parts[-2] = '_' + str(len(new_names) + 1) + '_'
                     new_names.append('.'.join(name_parts))
             ssr_names.extend(new_names)
@@ -1213,6 +1215,8 @@ def build_cmd(ssr_name, ssr_dir, is_lite):
             return build_cmd_lite(ssr_name, ssr_dir)
         else:
             return build_cmd_vmess(ssr_name, ssr_dir)
+    if re.match(SS_FILE_REGEX, ssr_name):
+        return build_cmd_lite(ssr_name, ssr_dir)
     return f'{cmd} --ssr-name=\'{ssr_name}\''
 
 def build_cmd_vmess(vmess_name, ssr_dir):
@@ -1228,10 +1232,10 @@ def build_cmd_lite(vmess_name, ssr_dir):
     vmess_link = get_vmess_link(vmess_name, ssr_dir)
     if not vmess_link:
         return ''
-    return f'{V2RAY_DIR}lite --port 8088 --link {vmess_link}' 
+    return f'{V2RAY_DIR}lite --port 8088 --link {vmess_link.rstrip()}' 
 
 def get_vmess_link(vmess_name, ssr_dir):
-    match = re.match('.*\._(\d+)_\.vmess?$', vmess_name)
+    match = re.match('.*\._(\d+)_\.(vmess|ss)?$', vmess_name)
     if not match:
         return ''
     line_num = match.group(1)
@@ -1240,7 +1244,7 @@ def get_vmess_link(vmess_name, ssr_dir):
     vmess_path = f'{ssr_dir}{vmess_name}'
     with open(vmess_path) as f:
         lines = f.readlines()
-        lines = [line for line in lines if re.match(VMESS_LINK_REGEX, line.rstrip())]
+        lines = [line for line in lines if re.match(VMESS_LINK_REGEX, line.rstrip()) or re.match(SS_LINK_REGEX, line.rstrip()) ]
         return lines[line_num - 1]
 
 def match_multiple_links_filename(filename):
